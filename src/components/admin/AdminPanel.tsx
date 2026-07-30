@@ -65,6 +65,9 @@ const AuditLogTab = ({ db }: { db: any }) => {
     const unsub = onSnapshot(q, (snapshot) => {
       setLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
+    }, (err) => {
+      console.warn("Audit logs error:", err);
+      setLoading(false);
     });
     return () => unsub();
   }, [db]);
@@ -183,15 +186,15 @@ const DashboardTab = ({ db, setActiveTab }: { db: any; setActiveTab: (tab: any) 
         subscribers: subs,
         onlineNow: Math.max(1, Math.floor(docs.length * 0.4))
       }));
-    });
+    }, (err) => console.warn("Admin profiles listener:", err));
 
     const unsubAppeals = onSnapshot(collection(db, 'appeals'), (snap) => {
       setStats(s => ({ ...s, appeals: snap.docs.filter(d => d.data().status === 'pending').length }));
-    });
+    }, (err) => console.warn("Admin appeals listener:", err));
 
     const unsubReports = onSnapshot(collection(db, 'reports'), (snap) => {
       setStats(s => ({ ...s, reportsToday: snap.size }));
-    });
+    }, (err) => console.warn("Admin reports listener:", err));
 
     const unsubMarketplace = onSnapshot(collection(db, 'marketplace_items'), (snap) => {
       const count = snap.size;
@@ -201,7 +204,7 @@ const DashboardTab = ({ db, setActiveTab }: { db: any; setActiveTab: (tab: any) 
         orders: count,
         revenue: `$${totalRev.toLocaleString()}`
       }));
-    });
+    }, (err) => console.warn("Admin marketplace listener:", err));
 
     return () => {
       unsubProfiles();
@@ -311,6 +314,9 @@ const UsersTab = ({ db, addToast, purgeUser, toggleUserBan, toggleVerification, 
     if (!db) return;
     const unsub = onSnapshot(collection(db, 'profiles'), (snapshot) => {
       setUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.warn("Profiles list error:", err);
       setLoading(false);
     });
     return () => unsub();
@@ -819,6 +825,9 @@ const ReportsTab = ({ db }: { db: any }) => {
     const unsub = onSnapshot(q, (snapshot) => {
       setReports(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
+    }, (err) => {
+      console.warn("Reports list error:", err);
+      setLoading(false);
     });
     return () => unsub();
   }, [db]);
@@ -883,6 +892,9 @@ const AppealsTab = ({ db, addToast }: { db: any; addToast: any }) => {
     const q = query(collection(db, 'appeals'), orderBy('timestamp', 'desc'), limit(50));
     const unsub = onSnapshot(q, (snapshot) => {
       setAppeals(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.warn("Appeals list error:", err);
       setLoading(false);
     });
     return () => unsub();
@@ -1351,6 +1363,9 @@ const RolesPermissionsTab = ({ db, addToast, onOpenAddAdmin }: { db: any; addToa
         .filter((u: any) => u.isAdmin || (u.role && u.role.toLowerCase() !== 'user'));
       setAdminUsers(list);
       setLoadingAdmins(false);
+    }, (err) => {
+      console.warn("Admin profiles error:", err);
+      setLoadingAdmins(false);
     });
     return () => unsub();
   }, [db]);
@@ -1604,7 +1619,7 @@ export const AdminPanel = () => {
     if (!db) return;
     const unsub = onSnapshot(collection(db, 'profiles'), (snap) => {
       setAllProfiles(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (err) => console.warn("All profiles error:", err));
     return () => unsub();
   }, [db]);
 

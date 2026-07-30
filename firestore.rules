@@ -342,12 +342,46 @@ service cloud.firestore {
 
     // 29. CONTENT REPORTS (user-submitted moderation reports)
     match /reports/{reportId} {
-      allow read: if isAdmin();
+      allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.reporterId == request.auth.uid
         && request.resource.data.status == 'pending';
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // 30. SYSTEM CONFIGURATION
+    match /system_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 31. GROUPS & PAGES
+    match /groups/{groupId} {
+      allow read, write: if isSignedIn();
+    }
+    match /pages/{pageId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 32. APPEALS & MODERATION
+    match /appeals/{appealId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 33. MARKETPLACE ITEMS
+    match /marketplace_items/{itemId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 34. LOGS & EVENTS
+    match /login_history/{historyId} {
+      allow read, create, update: if isSignedIn();
+    }
+    match /processed_events/{eventId} {
+      allow read, write: if isSignedIn();
+    }
+    match /transaction_logs/{logId} {
+      allow read, write: if isSignedIn();
     }
   }
 }
