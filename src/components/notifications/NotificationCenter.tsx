@@ -526,79 +526,58 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       initial={{ opacity: 0, x: 100 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 100 }}
-      className="fixed inset-y-0 right-0 w-full md:w-[465px] z-[100] bg-aeirmist-bg/85 backdrop-blur-[45px] border-l border-white/5 shadow-[-25px_0_75px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col"
+      className="fixed inset-y-0 right-0 w-full md:w-[465px] z-[100] bg-neutral-950/95 backdrop-blur-3xl border-l border-white/15 shadow-[-25px_0_75px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col"
     >
       {/* Header Panel */}
-      <header className="p-5.5 border-b border-white/5 bg-black/30 backdrop-blur-3xl relative z-10">
-        <div className="flex items-center justify-between mb-5">
+      <header className="p-5 border-b border-white/15 bg-black/60 backdrop-blur-3xl relative z-10">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-aeirmist-magenta/10 flex items-center justify-center text-aeirmist-magenta border border-aeirmist-magenta/25 shadow-[0_0_15px_rgba(255,0,234,0.25)]">
+            <div className="w-10 h-10 rounded-2xl bg-aeirmist-magenta/20 flex items-center justify-center text-aeirmist-magenta border border-aeirmist-magenta/40 shadow-[0_0_15px_rgba(255,0,234,0.3)]">
               <Bell size={19} className="animate-pulse" />
             </div>
             <div>
               <h2 className="text-base font-black tracking-widest text-white uppercase leading-none">Activity Center</h2>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={markAllRead} 
+              className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-[10px] font-black uppercase tracking-widest text-white hover:text-aeirmist-cyan hover:bg-white/20 transition-all shrink-0 cursor-pointer whitespace-nowrap"
+            >
+              Mark All Read
+            </button>
             <button 
               onClick={onSettingsClick}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-white/10 border border-white/15 text-white/70 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
               title="System Configuration"
             >
               <Settings size={15} />
             </button>
             <button 
               onClick={onClose} 
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-aeirmist-magenta hover:border-aeirmist-magenta/20 transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-white/10 border border-white/15 text-white/70 hover:text-aeirmist-magenta hover:border-aeirmist-magenta/40 transition-all cursor-pointer"
             >
               <X size={15} />
             </button>
           </div>
         </div>
-
-
-
-        {/* Live Filter Inputs */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={13} />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter live logs..." 
-              className="w-full bg-white/5 border border-white/5 rounded-xl py-2 px-9 text-xs text-white outline-none focus:border-aeirmist-cyan/30 transition-all font-semibold placeholder:text-white/20"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
-                <X size={11} />
-              </button>
-            )}
-          </div>
-          <button 
-            onClick={markAllRead} 
-            className="px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-aeirmist-cyan hover:border-aeirmist-cyan/20 transition-all shrink-0 cursor-pointer whitespace-nowrap"
-          >
-            Mark All Read
-          </button>
-        </div>
       </header>
 
       {/* Categories Horizontal Scrolling Pill Navigation Container */}
-      <div className="px-5 border-b border-white/5 bg-black/15 overflow-x-auto no-scrollbar flex items-center shrink-0">
-        <div className="flex gap-1.5 py-3 pr-4">
+      <div className="px-5 border-b border-white/15 bg-black/40 overflow-x-auto no-scrollbar flex items-center shrink-0">
+        <div className="flex gap-2 py-3 pr-4">
           <button 
             onClick={() => setPriorityFilter(!priorityFilter)}
-            className={`py-1.5 px-3 rounded-full text-[9px] font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+            className={`py-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 shrink-0 cursor-pointer ${
               priorityFilter 
-                ? 'bg-aeirmist-magenta text-white border border-aeirmist-magenta shadow-[0_0_12px_rgba(255,0,234,0.3)]' 
-                : 'bg-white/5 border border-white/10 text-white/40 hover:text-white/70 hover:bg-white/10'
+                ? 'bg-aeirmist-magenta text-white border border-aeirmist-magenta shadow-[0_0_12px_rgba(255,0,234,0.4)]' 
+                : 'bg-white/10 border border-white/15 text-white/80 hover:text-white hover:bg-white/20'
             }`}
           >
-            <Zap size={11} className={priorityFilter ? 'animate-pulse' : ''} />
+            <Zap size={12} className={priorityFilter ? 'animate-pulse' : ''} />
             Priority
           </button>
-          <div className="w-px h-4 bg-white/10 mx-1 shrink-0" />
+          <div className="w-px h-4 bg-white/20 mx-1 shrink-0" />
           {tabsConfig.map(tab => {
             const count = unreadCounts[tab.id];
             const isActive = activeTab === tab.id;
@@ -606,16 +585,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <button 
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-1.5 px-3 rounded-full text-[9px] font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                className={`py-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-wider relative transition-all duration-300 flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isActive 
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/35 shadow-[0_0_12px_rgba(59,130,246,0.15)]' 
-                    : 'bg-white/5 border border-transparent text-white/40 hover:text-white/70 hover:bg-white/10'
+                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50 shadow-[0_0_12px_rgba(59,130,246,0.3)]' 
+                    : 'bg-white/10 border border-white/15 text-white/80 hover:text-white hover:bg-white/20'
                 }`}
               >
                 {tab.icon}
                 {tab.label}
                 {count > 0 && (
-                  <span className="w-4 h-4 ml-0.5 rounded-full bg-blue-500 text-white text-[8px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(59,130,246,0.5)] shrink-0">
+                  <span className="w-4 h-4 ml-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(59,130,246,0.6)] shrink-0">
                     {count}
                   </span>
                 )}
@@ -626,9 +605,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       </div>
 
       {/* Notification Logs List */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-5.5 space-y-3.5">
-        <div className="mb-4.5 flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-[0.25em] text-white/20">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-5 space-y-3.5 bg-neutral-950/80">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">
             {activeTab === 'all' ? 'Unified Feeds logs' : `${activeTab} category`}
           </span>
 
@@ -636,14 +615,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             {(mutedUsernames.length > 0 || hiddenTypes.length > 0) && (
               <button 
                 onClick={clearFilters}
-                className="text-[8px] font-black uppercase tracking-wider text-rose-400 hover:underline flex items-center gap-0.5"
+                className="text-[9px] font-black uppercase tracking-wider text-rose-400 hover:underline flex items-center gap-1"
                 title="Reset active filters"
               >
-                <RotateCcw size={8} />
+                <RotateCcw size={9} />
                 Reset Rules ({mutedUsernames.length + hiddenTypes.length})
               </button>
             )}
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+            <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
           </div>
         </div>
         
@@ -664,19 +643,19 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           ))
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center py-20 px-6">
-            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-aeirmist-cyan">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center mb-4 text-aeirmist-cyan">
               <Bell size={24} />
             </div>
             <p className="text-sm font-bold text-white mb-1">No Notifications Yet</p>
-            <p className="text-xs text-white/50 max-w-xs leading-relaxed">
-              {searchQuery ? 'No notifications match your search query.' : 'When you receive likes, comments, or direct messages, they will appear here.'}
+            <p className="text-xs text-white/60 max-w-xs leading-relaxed">
+              When you receive likes, comments, or direct messages, they will appear here.
             </p>
           </div>
         )}
 
         {/* Dynamic footer visual tag */}
-        <div className="pt-6 pb-2 text-center select-none opacity-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 text-[8px] font-black tracking-widest uppercase text-white/50">
+        <div className="pt-6 pb-2 text-center select-none opacity-40">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[9px] font-black tracking-widest uppercase text-white/70">
             <Brain size={10} />
             Connection Secure
           </div>

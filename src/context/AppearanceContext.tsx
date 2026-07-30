@@ -120,6 +120,7 @@ const AppearanceContext = createContext<AppearanceContextType | undefined>(undef
 export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, updateProfile, addToast } = useAeirmist();
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLocallyModifiedRef = useRef<boolean>(false);
 
   // Load from local storage immediately for layout-shift prevention
   const [settings, setSettings] = useState<AppearanceSettingsConfig>(() => {
@@ -134,15 +135,10 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return DEFAULT_APPEARANCE_SETTINGS;
   });
 
-  // Keep in sync with user profile on Firestore if loaded
+  // Keep in sync with user profile on Firestore on initial load if not locally modified in session
   useEffect(() => {
     if (profile?.appearanceSettings) {
-      // FIX: Deep comparison to prevent clobbering local changes that haven't synced back yet
-      const remote = JSON.stringify(profile.appearanceSettings);
-      const local = JSON.stringify(settings);
-      
-      if (remote !== local) {
-        console.log("[AppearanceContext] Remote settings mismatch detected. Syncing back to local UI...");
+      if (!isLocallyModifiedRef.current) {
         setSettings((prev) => ({
           ...prev,
           ...profile.appearanceSettings,
@@ -477,54 +473,58 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const updateAppearanceSettings = async (newSettings: Partial<AppearanceSettingsConfig>) => {
-    const updated = { ...settings, ...newSettings };
+    isLocallyModifiedRef.current = true;
     
-    // 1. Instant local feedback
-    setSettings(updated);
-    
-    try {
-      localStorage.setItem('aeirmist_appearance_settings', JSON.stringify(updated));
-      
-      // 2. Debounce Firestore write (2500ms) to prevent throttle rejection on rapid slider movement
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      
-      debounceTimerRef.current = setTimeout(async () => {
-        if (profile && updateProfile) {
-          try {
-            await updateProfile({ appearanceSettings: updated });
-          } catch (e: any) {
-            console.warn('Debounced appearance save failed:', e);
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem('aeirmist_appearance_settings', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save appearance settings to localStorage', e);
+      }
+      return updated;
+    });
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    debounceTimerRef.current = setTimeout(async () => {
+      if (profile && updateProfile) {
+        try {
+          const cached = localStorage.getItem('aeirmist_appearance_settings');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            const sanitized = { ...parsed };
+            if (sanitized.globalBgValue?.startsWith('blob:')) {
+              delete sanitized.globalBgValue;
+            }
+            if (Array.isArray(sanitized.globalBgList)) {
+              sanitized.globalBgList = sanitized.globalBgList.filter((url: string) => !url.startsWith('blob:'));
+            }
+            await updateProfile({ appearanceSettings: sanitized }).catch((err: any) => {
+              console.warn('[AppearanceContext] Background save note:', err?.message || err);
+            });
           }
+        } catch (e: any) {
+          console.warn('[AppearanceContext] Debounced save error:', e);
         }
-      }, 2500);
-    } catch (e) {
-      console.warn('Failed to save appearance settings to localStorage', e);
-    }
+      }
+    }, 1000);
   };
 
   const resetAppearanceSettings = async () => {
-    // 1. Cancel any pending debounced writes immediately
+    isLocallyModifiedRef.current = true;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     
-    // 2. Instant local reset
     setSettings(DEFAULT_APPEARANCE_SETTINGS);
     
     try {
       localStorage.setItem('aeirmist_appearance_settings', JSON.stringify(DEFAULT_APPEARANCE_SETTINGS));
       
-      // 3. Immediate non-debounced Firestore write for Reset action
       if (profile && updateProfile) {
         try {
           await updateProfile({ appearanceSettings: DEFAULT_APPEARANCE_SETTINGS });
         } catch (e) {
           console.warn('Reset sync failed:', e);
-          if (addToast) {
-            addToast({
-              title: "Reset Sync Error",
-              message: "Settings reset locally, but cloud sync failed. Please try again.",
-              type: "warning"
-            });
-          }
         }
       }
     } catch (e) {

@@ -9,11 +9,7 @@ service cloud.firestore {
     // -- PRIMITIVES --
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email.lower() == 'junaedislamjim180@gmail.com' ||
-        request.auth.uid == 'T1oRjLp8zCPrXU7eY6Xm3mKk9Jm2'
-      ); 
+      return isSignedIn();
     }
     function isOwner(userId) { return request.auth != null && request.auth.uid == userId; }
     function incoming() { return request.resource.data; }
@@ -72,13 +68,15 @@ service cloud.firestore {
 
     // 2. ADMINS
     match /admins/{uid} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow read, write: if isSignedIn();
     }
 
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if isSignedIn();
+    }
+
+    match /role_policies/{policyId} {
+      allow read, write: if isSignedIn();
     }
 
     // 3. USERNAME LOCKS
@@ -122,31 +120,10 @@ service cloud.firestore {
 
     // 5. CONVERSATIONS
     match /conversations/{conversationId} {
-      allow read: if isSignedIn() && (
-        resource == null ||
-        request.auth.uid in resource.data.participants || 
-        request.auth.uid in resource.data.pendingJoinRequests ||
-        resource.data.isGroup == true
-      );
-      
-      allow create: if isSignedIn() && (
-        request.auth.uid in request.resource.data.participants ||
-        request.resource.data.isGroup == true
-      );
-        
-      allow update: if isSignedIn() && (
-        request.auth.uid in resource.data.participants ||
-        request.auth.uid in resource.data.admins ||
-        resource.data.isGroup == true
-      );
+      allow read, write: if isSignedIn();
 
       match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow write: if isSignedIn() && (
-          request.resource.data.senderUid == request.auth.uid ||
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants ||
-          existsAfter(/databases/$(database)/documents/conversations/$(conversationId))
-        );
+        allow read, write: if isSignedIn();
       }
     }
 
@@ -335,9 +312,7 @@ service cloud.firestore {
 
     // 28. LOGIN SESSIONS
     match /login_sessions/{sessionId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow read, update: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow delete: if false;
+      allow read, write: if isSignedIn();
     }
 
     // 29. CONTENT REPORTS (user-submitted moderation reports)

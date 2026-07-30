@@ -110,8 +110,10 @@ export default function AppearanceSettings() {
   };
 
   const handleRemoveWallpaper = () => {
-    handleUpdate('globalBgType', 'none');
-    handleUpdate('globalBgValue', '');
+    updateAppearanceSettings({
+      globalBgType: 'none',
+      globalBgValue: ''
+    });
   };
 
   const handleRemoveFromRotationList = (indexToRemove: number) => {
@@ -540,8 +542,10 @@ export default function AppearanceSettings() {
                             <div 
                               key={idx}
                               onClick={() => {
-                                handleUpdate('globalBgType', 'custom');
-                                handleUpdate('globalBgValue', bg.url);
+                                updateAppearanceSettings({
+                                  globalBgType: 'custom',
+                                  globalBgValue: bg.url
+                                });
                               }}
                               className={`h-20 rounded-xl bg-cover bg-center border-2 cursor-pointer transition-all ${
                                 settings.globalBgValue === bg.url ? 'border-aeirmist-cyan shadow-[0_0_15px_rgba(0,242,255,0.2)] scale-[0.98]' : isLight ? 'border-slate-200 hover:border-slate-300' : 'border-transparent hover:border-white/20'
@@ -561,8 +565,10 @@ export default function AppearanceSettings() {
                             <div 
                               key={idx}
                               onClick={() => {
-                                handleUpdate('globalBgType', 'solid');
-                                handleUpdate('globalBgValue', bg.hex);
+                                updateAppearanceSettings({
+                                  globalBgType: 'solid',
+                                  globalBgValue: bg.hex
+                                });
                               }}
                               className={`h-14 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-center ${
                                 settings.globalBgValue === bg.hex ? 'border-aeirmist-cyan shadow-[0_0_15px_rgba(0,242,255,0.2)] scale-[0.98]' : isLight ? 'border-slate-200 hover:border-slate-300' : 'border-transparent hover:border-white/20'
@@ -580,8 +586,10 @@ export default function AppearanceSettings() {
                             <div 
                               key={idx}
                               onClick={() => {
-                                handleUpdate('globalBgType', 'gradient');
-                                handleUpdate('globalBgValue', bg.grad);
+                                updateAppearanceSettings({
+                                  globalBgType: 'gradient',
+                                  globalBgValue: bg.grad
+                                });
                               }}
                               className={`h-14 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-center ${
                                 settings.globalBgValue === bg.grad ? 'border-aeirmist-cyan shadow-[0_0_15px_rgba(0,242,255,0.2)] scale-[0.98]' : isLight ? 'border-slate-200 hover:border-slate-300' : 'border-transparent hover:border-white/20'
@@ -604,8 +612,10 @@ export default function AppearanceSettings() {
                               <div key={idx} className="relative group">
                                 <div 
                                   onClick={() => {
-                                    handleUpdate('globalBgType', 'custom');
-                                    handleUpdate('globalBgValue', bg);
+                                    updateAppearanceSettings({
+                                      globalBgType: 'custom',
+                                      globalBgValue: bg
+                                    });
                                   }}
                                   className={`h-20 rounded-xl bg-cover bg-center border-2 cursor-pointer transition-all ${
                                     settings.globalBgValue === bg ? 'border-aeirmist-cyan shadow-[0_0_15px_rgba(0,242,255,0.2)] scale-[0.98]' : isLight ? 'border-slate-200 hover:border-slate-300' : 'border-transparent hover:border-white/20'

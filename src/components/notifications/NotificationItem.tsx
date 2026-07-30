@@ -245,8 +245,10 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       transition={{ duration: 0.2 }}
-      className={`relative group glass-panel rounded-xl border transition-all duration-300 ${getPriorityGlow()} ${
-        isUnread ? 'opacity-100 shadow-[0_4px_12px_rgba(0,0,0,0.15)]' : 'opacity-55'
+      className={`relative group rounded-xl border transition-all duration-300 ${getPriorityGlow()} ${
+        isUnread 
+          ? 'bg-neutral-900 border-blue-500/40 shadow-lg opacity-100' 
+          : 'bg-neutral-900/80 border-white/15 hover:border-white/30 opacity-100'
       } cursor-pointer overflow-hidden`}
       onClick={handleCardClick}
     >
@@ -255,23 +257,23 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         <div className="absolute top-0 bottom-0 left-0 w-[4px] bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] z-10" />
       )}
 
-      {/* Main Grid View - padded generously (p-5) */}
-      <div className="p-5 flex gap-4 items-start">
+      {/* Main Grid View - padded generously (p-4) */}
+      <div className="p-4 flex gap-3.5 items-start">
         {/* Left Side: Avatar with floating action indicator and unread cyan ring */}
         <div className="relative shrink-0">
-          <div className="relative p-0.5 rounded-2xl bg-gradient-to-tr from-white/10 to-white/5 group-hover:scale-105 transition-transform duration-300">
+          <div className="relative p-0.5 rounded-2xl bg-gradient-to-tr from-white/20 to-white/10 group-hover:scale-105 transition-transform duration-300">
             <img 
               src={getAvatarUrl()} 
               alt={getUsername()} 
               referrerPolicy="no-referrer"
               className={`w-11 h-11 rounded-xl border object-cover bg-black ${
                 isUnread 
-                  ? 'border-aeirmist-cyan ring-2 ring-aeirmist-cyan/30' 
-                  : 'border-white/10'
+                  ? 'border-aeirmist-cyan ring-2 ring-aeirmist-cyan/40' 
+                  : 'border-white/20'
               }`} 
             />
             {/* Action Icon overlay */}
-            <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-black/90 border border-white/20 flex items-center justify-center shadow-lg">
+            <div className="absolute -bottom-1 -right-1 w-5.5 h-5.5 rounded-lg bg-black border border-white/30 flex items-center justify-center shadow-lg">
               {getIcon()}
             </div>
           </div>
@@ -279,8 +281,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
         {/* Center Section: Message Details */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <h4 className="text-xs font-black text-white/90 truncate flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h4 className="text-xs font-black text-white truncate flex items-center gap-1">
               <span className="hover:text-aeirmist-cyan transition-colors">
                 @{getUsername()}
               </span>
@@ -290,7 +292,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
               {getPriorityLabel()}
             </h4>
             <div className="flex items-center gap-1.5 shrink-0 relative">
-              <span className="text-[9px] font-mono tracking-wider text-white/30 whitespace-nowrap">
+              <span className="text-[10px] font-mono tracking-wider text-white/60 whitespace-nowrap">
                 {displayTime}
               </span>
               
@@ -302,7 +304,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     e.stopPropagation();
                     onDelete(notification.id);
                   }}
-                  className="p-1 hover:bg-rose-500/20 text-white/40 hover:text-rose-400 rounded-lg transition-all active:scale-90 cursor-pointer"
+                  className="p-1 hover:bg-rose-500/20 text-white/70 hover:text-rose-400 rounded-lg transition-all active:scale-90 cursor-pointer"
                   title="Remove notification"
                 >
                   <X size={14} />
@@ -316,7 +318,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                   e.stopPropagation();
                   setIsMenuOpen(!isMenuOpen);
                 }}
-                className="p-1 hover:bg-white/5 text-white/40 hover:text-white rounded-lg transition-all active:scale-90 cursor-pointer"
+                className="p-1 hover:bg-white/10 text-white/70 hover:text-white rounded-lg transition-all active:scale-90 cursor-pointer"
                 title="Options"
               >
                 <MoreVertical size={14} />
@@ -327,7 +329,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 <div 
                   ref={menuRef}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-neutral-950/95 backdrop-blur-md border border-white/10 p-1.5 shadow-[0_10px_25px_rgba(0,0,0,0.5)] z-50 flex flex-col gap-1 text-left font-sans"
+                  className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-neutral-950 backdrop-blur-md border border-white/20 p-1.5 shadow-[0_10px_25px_rgba(0,0,0,0.8)] z-50 flex flex-col gap-1 text-left font-sans"
                 >
                   {isUnread && onMarkRead && (
                     <button
@@ -336,7 +338,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         onMarkRead(notification.id);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white hover:bg-white/5 transition-all text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/80 hover:text-white hover:bg-white/10 transition-all text-left"
                     >
                       <Check size={12} className="text-aeirmist-cyan" />
                       Mark Read
@@ -349,7 +351,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         onHideType(notification.type);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white hover:bg-white/5 transition-all text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/80 hover:text-white hover:bg-white/10 transition-all text-left"
                     >
                       <EyeOff size={12} className="text-amber-400" />
                       Hide Similar
@@ -362,7 +364,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         onMuteUser(getUsername());
                         setIsMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white hover:bg-white/5 transition-all text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/80 hover:text-white hover:bg-white/10 transition-all text-left"
                     >
                       <VolumeX size={12} className="text-purple-400" />
                       Mute User
@@ -375,7 +377,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                         onDelete(notification.id);
                         setIsMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all text-left border-t border-white/5 mt-1 pt-1.5"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all text-left border-t border-white/10 mt-1 pt-1.5"
                     >
                       <Trash2 size={12} />
                       Delete Alert
@@ -386,7 +388,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             </div>
           </div>
 
-          <p className="text-xs text-white/70 font-semibold leading-relaxed truncate pr-2">
+          <p className="text-xs text-white/95 font-medium leading-relaxed truncate pr-2">
             {notification.groupedCount && notification.groupedCount > 1 ? (
               <>
                 <span className="text-white font-bold">{notification.user?.name || 'Someone'}</span>
