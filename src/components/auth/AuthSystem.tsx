@@ -553,16 +553,16 @@ export const AuthSystem: React.FC = () => {
   };
 
   return (
-    <div className={`relative min-h-screen w-full flex overflow-x-hidden ${activeTheme.isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#050505] text-white'}`}>
+    <div className={`relative min-h-[100dvh] w-full flex overflow-x-hidden ${activeTheme.isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#050505] text-white'}`}>
       
       {/* Universal light animated drifting background */}
       <DriftingBg />
 
       {/* Dual Pane split-screen layout */}
-      <div className="w-full min-h-screen flex flex-col lg:flex-row">
+      <div className="w-full min-h-[100dvh] flex flex-col lg:flex-row">
         
         {/* Left Side: Branding and Features (Hidden on mobile) */}
-        <div className="hidden lg:flex lg:w-1/2 p-16 flex-col justify-between relative border-r border-white/5 bg-gradient-to-br from-black/20 to-transparent">
+        <div className="hidden lg:flex lg:w-1/2 p-10 xl:p-16 flex-col justify-between relative border-r border-white/5 bg-gradient-to-br from-black/20 to-transparent">
           {/* subtle grid background overlay */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(0,242,255,0.02),rgba(255,255,255,0))]" />
           
@@ -574,14 +574,14 @@ export const AuthSystem: React.FC = () => {
             </div>
             
             <div className="space-y-1.5 pt-8">
-              <h1 className="font-display font-black text-5xl tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-aeirmist-cyan)] to-[var(--color-aeirmist-magenta)] drop-shadow-[0_0_35px_rgba(0,242,255,0.25)]">
+              <h1 className="font-display font-black text-4xl xl:text-5xl tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-aeirmist-cyan)] to-[var(--color-aeirmist-magenta)] drop-shadow-[0_0_35px_rgba(0,242,255,0.25)]">
                 AEIRMIST
               </h1>
               <p className="text-xs font-mono uppercase tracking-[0.3em] text-white/30">Communication Platform</p>
             </div>
           </div>
 
-          <div className="relative space-y-5 max-w-md my-auto">
+          <div className="relative space-y-4 xl:space-y-5 max-w-md my-auto">
             <FeatureItem 
               icon={Sparkles} 
               title="App Theme" 
@@ -605,23 +605,23 @@ export const AuthSystem: React.FC = () => {
         </div>
 
         {/* Right Side: Interactive Auth Cards & Notices */}
-        <div className="flex-1 flex flex-col justify-center items-center px-4 py-12 sm:px-6 lg:px-16 overflow-y-auto z-10 relative">
+        <div className="flex-1 flex flex-col items-center px-3.5 sm:px-6 lg:px-12 xl:px-16 py-6 sm:py-10 overflow-y-auto z-10 relative w-full min-h-[100dvh]">
           
           {/* Keyboard safe, responsive card container */}
-          <div className="w-full max-w-[460px] flex flex-col items-center">
+          <div className="w-full max-w-[460px] flex flex-col items-center my-auto py-2">
             
             {/* Mobile Header Branding (Shown on small devices only) */}
-            <div className="lg:hidden flex flex-col items-center text-center mb-8">
-              <AeirmistLogo className="w-14 h-14 drop-shadow-[0_0_25px_rgba(0,242,255,0.55)] mb-3" variant="compact" />
-              <h1 className="font-display font-black text-2xl tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-aeirmist-cyan)] to-[var(--color-aeirmist-magenta)]">
+            <div className="lg:hidden flex flex-col items-center text-center mb-4 sm:mb-6">
+              <AeirmistLogo className="w-11 h-11 sm:w-14 sm:h-14 drop-shadow-[0_0_25px_rgba(0,242,255,0.55)] mb-2 sm:mb-3" variant="compact" />
+              <h1 className="font-display font-black text-xl sm:text-2xl tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-[var(--color-aeirmist-cyan)] to-[var(--color-aeirmist-magenta)]">
                 AEIRMIST
               </h1>
-              <span className="text-[9px] tracking-widest font-mono text-white/30 uppercase mt-1">Aeirmist User Entry</span>
+              <span className="text-[9px] tracking-widest font-mono text-white/30 uppercase mt-0.5">Aeirmist User Entry</span>
             </div>
 
             {/* Offline Alert */}
             {!isOnline && (
-              <div className="w-full bg-amber-500/10 border border-amber-500/15 p-3 rounded-2xl flex items-center gap-2.5 text-amber-500 text-[11px] font-bold uppercase tracking-wider mb-4 animate-pulse">
+              <div className="w-full bg-amber-500/10 border border-amber-500/15 p-3 rounded-2xl flex items-center gap-2.5 text-amber-500 text-[11px] font-bold uppercase tracking-wider mb-3 sm:mb-4 animate-pulse">
                 <WifiOff size={15} className="shrink-0" />
                 <span>Connection interrupted. Running in offline mode.</span>
               </div>
@@ -634,17 +634,17 @@ export const AuthSystem: React.FC = () => {
                 idle: { x: 0 }
               }}
               animate={shakeActive ? "shake" : "idle"}
-              className={`w-full overflow-hidden rounded-[28px] border ${
+              className={`w-full overflow-hidden rounded-[22px] sm:rounded-[28px] border ${
                 activeTheme.isLight 
-                  ? 'bg-white/75 border-slate-200/60 shadow-[0_20px_50px_rgba(15,23,42,0.08)]' 
-                  : 'bg-[#0b0d12]/80 border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.65)]'
-              } p-6 sm:p-8 backdrop-blur-2xl transition-all duration-300 relative`}
+                  ? 'bg-white/80 border-slate-200/60 shadow-[0_20px_50px_rgba(15,23,42,0.08)]' 
+                  : 'bg-[#0b0d12]/85 border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.65)]'
+              } p-4 sm:p-7 backdrop-blur-2xl transition-all duration-300 relative`}
             >
               
               {/* Card Title Header */}
               {view === 'login' && (
-                <div className="mb-6 flex flex-col items-start border-b border-white/5 pb-4">
-                  <h2 className="text-xl font-black uppercase tracking-wider">Welcome Back</h2>
+                <div className="mb-4 sm:mb-6 flex flex-col items-start border-b border-white/5 pb-3 sm:pb-4">
+                  <h2 className="text-lg sm:text-xl font-black uppercase tracking-wider">Welcome Back</h2>
                   <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-aeirmist-cyan)]">Continue your Loop.</p>
                 </div>
               )}
@@ -1330,7 +1330,7 @@ export const AuthSystem: React.FC = () => {
                       <p className="text-xs text-white/50 leading-relaxed">Enter the 6-digit handshake sequence displayed on your primary screen.</p>
                     </div>
 
-                    <div className="flex justify-center gap-2.5">
+                    <div className="flex justify-center gap-1.5 sm:gap-2.5 max-w-full overflow-x-auto py-1">
                       {Array.from({ length: 6 }).map((_, idx) => (
                         <input
                           key={idx}
@@ -1340,7 +1340,7 @@ export const AuthSystem: React.FC = () => {
                           maxLength={1}
                           value={pairingCodeArray[idx]}
                           onChange={(e) => handlePairingCodeChange(idx, e.target.value)}
-                          className="w-11 h-14 text-center text-lg font-black bg-white/[0.03] border border-white/10 rounded-2xl text-white focus:outline-none focus:border-[var(--color-aeirmist-cyan)] transition-colors font-mono"
+                          className="w-9 sm:w-11 h-12 sm:h-14 text-center text-base sm:text-lg font-black bg-white/[0.03] border border-white/10 rounded-xl sm:rounded-2xl text-white focus:outline-none focus:border-[var(--color-aeirmist-cyan)] transition-colors font-mono shrink-0"
                         />
                       ))}
                     </div>
@@ -1526,12 +1526,12 @@ export const AuthSystem: React.FC = () => {
 
             {/* Bottom Card View Switcher Bar */}
             {!isSuccess && view !== 'pairing' && view !== 'forgot' && view !== 'reset' && view !== 'saved_accounts' && view !== 'saved_accounts_login' && (
-              <div className={`w-full mt-4 border ${
+              <div className={`w-full mt-3 sm:mt-4 border ${
                 activeTheme.isLight 
                   ? 'bg-white/70 border-slate-200/50 shadow-md' 
                   : 'bg-[#0b0d12]/75 border-white/5 shadow-md'
-              } rounded-2xl p-4 flex items-center justify-center`}>
-                <p className="text-xs text-white/50 font-semibold uppercase tracking-wider">
+              } rounded-2xl p-3 sm:p-4 flex items-center justify-center`}>
+                <p className="text-xs text-white/50 font-semibold uppercase tracking-wider text-center">
                   {view === 'login' ? "New to Aeirmist? " : "Already have an account? "}
                   <button
                     type="button"
@@ -1549,15 +1549,14 @@ export const AuthSystem: React.FC = () => {
               </div>
             )}
 
-
             {/* Sandboxed Demo fallback Link */}
             {!isSuccess && (
-              <div className="w-full mt-6 text-center">
+              <div className="w-full mt-3 sm:mt-5 text-center pb-4 sm:pb-2">
                 <button
                   type="button"
                   onClick={loginAsGuestSandbox}
                   disabled={loading}
-                  className="text-[10px] font-bold uppercase tracking-widest text-white/20 hover:text-white/55 transition-colors"
+                  className="text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/60 transition-colors py-1 cursor-pointer"
                 >
                   Enter Local Sandbox Mode
                 </button>
