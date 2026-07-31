@@ -1,10 +1,11 @@
 {
   "projectId": "aeirmist-d4dd8",
-  "appId": "1:999048341395:web:6142e77f58bf3b9de9aa66",
+  "appId": "1:999048341395:web:d35840bee522900be9aa66",
   "apiKey": "AIzaSyBmk_p1QK7VEI6VM0z2oX3Ut4TpEme3pkk",
   "authDomain": "aeirmist-d4dd8.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
   "storageBucket": "aeirmist-d4dd8.firebasestorage.app",
   "messagingSenderId": "999048341395",
-  "measurementId": "G-DLVDQNDWXE"
+  "measurementId": "",
+  "recaptchaSiteKey": ""
 }

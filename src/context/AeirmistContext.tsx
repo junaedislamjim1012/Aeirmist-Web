@@ -1906,9 +1906,9 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setNeedsUsername(false);
             setLoading(false);
           } else {
-             console.log("[Diagnostics - Auth] Initial sync empty. Routing to onboarding...");
-             setNeedsUsername(true);
-             setLoading(false);
+            console.log("[Diagnostics - Auth] Initial sync empty. Prompting username selection...");
+            setNeedsUsername(true);
+            setLoading(false);
           }
         } catch (e) {
           console.warn("[Diagnostics - Auth] Initial hydration error:", e);
@@ -1916,7 +1916,7 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setNeedsUsername(true);
         }
 
-        unsubProfile = onSnapshot(q, (snap) => {
+        unsubProfile = onSnapshot(q, async (snap) => {
           console.log("[Diagnostics - Auth] Snapshot Message:", snap.size);
           const profiles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
           setAllProfiles(profiles);
@@ -1928,7 +1928,7 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setNeedsUsername(false);
             setLoading(false);
           } else {
-            console.log("[Diagnostics - Auth] Snapshot returned empty state. Triggering onboarding...");
+            console.log("[Diagnostics - Auth] Snapshot returned empty state. Prompting username selection...");
             setNeedsUsername(true);
             setLoading(false);
           }
