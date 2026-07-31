@@ -1453,7 +1453,7 @@ const Messenger = ({ initialRecipient, onUserClick }: { initialRecipient?: any, 
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-1.5 h-1.5 rounded-full bg-aeirmist-cyan shadow-[0_0_8px_rgba(0,242,255,0.5)] flex-shrink-0" />
-                    <h1 className="text-base font-display font-black tracking-wider group-hover:text-aeirmist-cyan transition-colors truncate">
+                    <h1 className="text-base font-bold tracking-tight group-hover:text-aeirmist-cyan transition-colors truncate">
                       {profile?.username || 'USER'}
                     </h1>
                   </div>
@@ -2595,7 +2595,7 @@ const ChatWindow = ({
           </div>
           <div className={`group min-w-0 flex-1 ${!isPrivateSpace ? 'cursor-pointer' : ''}`} onClick={!isPrivateSpace ? (chat?.isGroup ? toggleInfo : handleVisitProfile) : undefined}>
             <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className={`font-display font-bold text-sm md:text-base group-hover:text-aeirmist-cyan transition-colors truncate ${isVaultMode ? 'text-[#e2afff]' : ''}`}>
+              <h3 className={`font-semibold text-base md:text-lg tracking-tight group-hover:text-aeirmist-cyan transition-colors truncate ${isVaultMode ? 'text-[#e2afff]' : ''}`}>
                 {isMySpace ? 'My Space' : (isSelfChat ? 'Note to self' : (chat?.isGroup ? chat.name : <LiveParticipantName participantId={chat.otherParticipantId || ''} fallbackName={chat.name || ''} chatId={chat.id} />))}
               </h3>
               {isPrivateSpace && <Lock size={12} className="text-white/40 shrink-0" />}
@@ -2811,7 +2811,7 @@ const ChatWindow = ({
       </div>
 
       {/* Input Area - Docked at Bottom */}
-      <footer className={`flex-shrink-0 w-full px-4 md:px-8 pb-4 md:pb-10 z-30`}>
+      <footer className={`flex-shrink-0 w-full px-2 sm:px-4 md:px-8 pb-1.5 sm:pb-3 md:pb-10 z-30`}>
         <div className="w-full">
           {(() => {
             const otherId = chat.otherParticipantId || chat.profileIds?.find((id: string) => id !== profile?.id);

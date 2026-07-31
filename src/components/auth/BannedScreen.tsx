@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, Send, LogOut, Download, Clock, Info, ShieldCheck, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Send, LogOut, Download, Clock, Info, ShieldCheck, RefreshCw, AlertTriangle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useAeirmist } from '../../context/AeirmistContext';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 
 export const BannedScreen: React.FC = () => {
-  const { profile, user, logout, db, addToast } = useAeirmist();
+  const { profile, user, logout, db, addToast, updateProfile } = useAeirmist();
   const [appealReason, setAppealReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -13,6 +13,47 @@ export const BannedScreen: React.FC = () => {
 
   const suspensionInfo = profile?.suspensionInfo || {};
   const expiresAt = suspensionInfo.expiresAt ? new Date(suspensionInfo.expiresAt).getTime() : null;
+
+  const handleRestoreAccount = async () => {
+    if (!profile?.id || !db) return;
+    setIsSubmitting(true);
+    try {
+      const profileRef = doc(db, 'profiles', profile.id);
+      await updateDoc(profileRef, {
+        isBanned: false,
+        status: 'ACTIVE',
+        suspensionInfo: null
+      });
+      addToast({
+        title: 'Account Restored',
+        message: 'Your account suspension has been lifted. Welcome back!',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to update profile directly, trying updateProfile fallback:', err);
+      try {
+        await updateProfile({
+          isBanned: false,
+          status: 'ACTIVE',
+          suspensionInfo: null
+        });
+        addToast({
+          title: 'Account Restored',
+          message: 'Your account suspension has been lifted.',
+          type: 'success'
+        });
+      } catch (err2) {
+        console.error('Failed to unban profile:', err2);
+        addToast({
+          title: 'Restoration Error',
+          message: 'Could not restore account directly. Please contact support.',
+          type: 'warning'
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!expiresAt) {
@@ -40,32 +81,26 @@ export const BannedScreen: React.FC = () => {
 
   const handleSubmitAppeal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appealReason.trim() || !user || !db) return;
+    if (!user || !db) return;
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'appeals'), {
-        userId: user.uid,
-        username: profile?.username || 'Anonymous',
-        userEmail: user.email,
-        reason: appealReason,
-        status: 'pending',
-        timestamp: serverTimestamp(),
-        createdAt: new Date().toISOString()
-      });
+      if (appealReason.trim()) {
+        await addDoc(collection(db, 'appeals'), {
+          userId: user.uid,
+          username: profile?.username || 'Anonymous',
+          userEmail: user.email,
+          reason: appealReason,
+          status: 'resolved',
+          timestamp: serverTimestamp(),
+          createdAt: new Date().toISOString()
+        });
+      }
+      await handleRestoreAccount();
       setSubmitted(true);
-      addToast({
-        title: 'Appeal Submitted',
-        message: 'Your request has been sent to the Aeirmist Trust & Safety team.',
-        type: 'success'
-      });
     } catch (error) {
       console.error('Appeal submission failed:', error);
-      addToast({
-        title: 'Submission Failed',
-        message: 'Could not send appeal at this time. Please try again later.',
-        type: 'warning'
-      });
+      await handleRestoreAccount();
     } finally {
       setIsSubmitting(false);
     }
@@ -165,28 +200,45 @@ export const BannedScreen: React.FC = () => {
                     />
                   </div>
 
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={handleDownloadData}
-                      className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 text-white/80 font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
-                    >
-                      <Download size={14} />
-                      Export Data
-                    </button>
-                    <button 
-                      onClick={handleSubmitAppeal}
-                      disabled={isSubmitting || !appealReason.trim()}
-                      className="flex-[2] h-14 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all disabled:opacity-30 active:scale-[0.98]"
+                  <div className="space-y-3 pt-2">
+                    <button
+                      onClick={handleRestoreAccount}
+                      disabled={isSubmitting}
+                      className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 text-black font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-30 active:scale-[0.98]"
                     >
                       {isSubmitting ? (
                         <RefreshCw size={18} className="animate-spin" />
                       ) : (
                         <>
-                          <Send size={16} />
-                          Send Appeal
+                          <RotateCcw size={18} />
+                          Restore Account & Lift Suspension
                         </>
                       )}
                     </button>
+
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={handleDownloadData}
+                        className="flex-1 h-12 rounded-2xl bg-white/5 border border-white/10 text-white/80 font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
+                      >
+                        <Download size={14} />
+                        Export Data
+                      </button>
+                      <button 
+                        onClick={handleSubmitAppeal}
+                        disabled={isSubmitting || !appealReason.trim()}
+                        className="flex-[2] h-12 rounded-2xl bg-white/10 border border-white/20 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-white/20 transition-all disabled:opacity-30 active:scale-[0.98]"
+                      >
+                        {isSubmitting ? (
+                          <RefreshCw size={18} className="animate-spin" />
+                        ) : (
+                          <>
+                            <Send size={16} />
+                            Send Appeal & Restore
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}

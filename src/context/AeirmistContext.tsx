@@ -2895,14 +2895,26 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const logout = async () => {
     try {
-      await logActivity('logout', 'User logged out and system link severed.');
+      await logActivity('logout', 'User logged out and system link severed.').catch(() => {});
     } catch (e) {
       console.warn("Could not log logout activity:", e);
     }
-    await goOffline();
-    await signOut(auth);
+    try {
+      await goOffline().catch(() => {});
+    } catch (e) {}
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("SignOut auth warning:", e);
+    }
     setProfile(null);
     setUser(null);
+    setActiveProfileId(null);
+    setAllProfiles([]);
+    try {
+      localStorage.removeItem('aeirmist_active_profile_id');
+      localStorage.removeItem('aeirmist_session');
+    } catch (e) {}
   };
 
   const updateProfile = async (data: any) => {

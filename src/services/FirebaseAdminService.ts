@@ -2,11 +2,16 @@ import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Absolute, non-negotiable defaults for aeirmist-d4dd8
+// ✅ Use correct config from firebase-applet-config.json
 const activeConfig = {
-  projectId: 'aeirmist-d4dd8',
-  firestoreDatabaseId: '(default)'
+  projectId: firebaseConfig.projectId,
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId
 };
+
+console.log('✅ [Firebase Admin] Initializing with:', {
+  projectId: activeConfig.projectId,
+  firestoreDatabaseId: activeConfig.firestoreDatabaseId
+});
 
 let adminApp: admin.app.App | null = null;
 
@@ -17,7 +22,7 @@ export function getFirebaseAdmin() {
       adminApp = admin.initializeApp({
         projectId: activeConfig.projectId,
       });
-      console.log('Admin Auth Initialized');
+      console.log('Admin Auth Initialized with project:', activeConfig.projectId);
     } catch (e: any) {
       if (e.code === 'app/duplicate-app') {
         adminApp = admin.app();

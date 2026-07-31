@@ -7,26 +7,24 @@ import {
 
 import {
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  getFirestore
+  memoryLocalCache,
+  getFirestore,
+  clearIndexedDbPersistence
 } from 'firebase/firestore';
 
 import { getStorage } from 'firebase/storage';
 
 import config from '../../firebase-applet-config.json';
 
-// Robust Firebase configuration with explicit, non-negotiable defaults for aeirmist-d4dd8
-const activeConfig = {
-  projectId: "aeirmist-d4dd8",
-  authDomain: "aeirmist-d4dd8.firebaseapp.com",
-  storageBucket: "aeirmist-d4dd8.firebasestorage.app",
-  appId: "1:999048341395:web:6142e77f58bf3b9de9aa66",
-  apiKey: "AIzaSyBmk_p1QK7VEI6VM0z2oX3Ut4TpEme3pkk",
-  firestoreDatabaseId: "(default)",
-  messagingSenderId: "999048341395",
-  measurementId: "G-DLVDQNDWXE"
-};
+if (!config || !config.projectId) {
+  console.error('❌ Firebase config invalid or missing:', config);
+  throw new Error(
+    'Invalid Firebase configuration. Ensure firebase-applet-config.json exists and contains valid projectId.'
+  );
+}
+
+console.log('✅ [Firebase] Initializing with project:', config.projectId);
+const activeConfig = config;
 
 const app =
   getApps().length > 0
@@ -38,18 +36,33 @@ export const auth = getAuth(app);
 setPersistence(auth, browserLocalPersistence)
   .catch(console.error);
 
-const dbId = activeConfig.firestoreDatabaseId === '(default)' ? undefined : activeConfig.firestoreDatabaseId;
+const dbId = (!activeConfig.firestoreDatabaseId || activeConfig.firestoreDatabaseId === '(default)') ? undefined : activeConfig.firestoreDatabaseId;
 
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
+    localCache: memoryLocalCache()
   }, dbId);
 } catch (e) {
-  console.warn("Firestore safe-fallback activated. Running with non-persistent client connection.", e);
   firestoreInstance = getFirestore(app, dbId);
+}
+
+// Clear any stale persistent IndexedDB cache from prior sessions to prevent prefixPath/IndexedDbTransactionError
+clearIndexedDbPersistence(firestoreInstance).catch(() => {});
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event?.reason?.message || String(event?.reason || '');
+    if (
+      msg.includes('IndexedDbTransactionError') ||
+      msg.includes('prefixPath') ||
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('AbortError')
+    ) {
+      console.warn('Prevented uncaught background error:', msg);
+      event.preventDefault();
+    }
+  });
 }
 
 export const db = firestoreInstance;

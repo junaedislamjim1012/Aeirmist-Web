@@ -35,29 +35,61 @@ function toMathBoldScript(text: string): string {
   }).join('');
 }
 
-const HomeFeedSystem = lazy(() => import('./components/feed/HomeFeedSystem').then(m => ({ default: m.HomeFeedSystem })));
-const Sidebar = lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })));
-const Messenger = lazy(() => import('./components/Messenger'));
-const ExploreSystem = lazy(() => import('./components/discover/ExploreSystem').then(m => ({ default: m.ExploreSystem })));
-const AeirmistDashboard = lazy(() => import('./components/dashboard/AeirmistDashboard').then(m => ({ default: m.AeirmistDashboard })));
-const SettingsSystem = lazy(() => import('./components/settings/SettingsSystem'));
-const NotificationCenter = lazy(() => import('./components/notifications/NotificationCenter'));
-const ProfileSystem = lazy(() => import('./components/profile/ProfileSystem'));
-const VideoFeed = lazy(() => import('./components/videos/VideoFeed').then(m => ({ default: m.VideoFeed })));
-const AdminPanel = lazy(() => import('./components/admin/AdminPanel').then(m => ({ default: m.AdminPanel })));
-const CommunityGuidelines = lazy(() => import('./components/legal/CommunityGuidelines'));
+const lazyWithRetry = <T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T } | any>,
+  retries = 3,
+  interval = 300
+): React.LazyExoticComponent<T> => {
+  return lazy(() =>
+    new Promise<{ default: T }>((resolve, reject) => {
+      const attempt = (retriesLeft: number) => {
+        factory()
+          .then((module) => {
+            const component = module && module.default ? module.default : module;
+            resolve({ default: component });
+          })
+          .catch((error) => {
+            if (retriesLeft <= 1) {
+              const key = 'chunk_reload_retry';
+              if (!sessionStorage.getItem(key)) {
+                sessionStorage.setItem(key, 'true');
+                window.location.reload();
+                return;
+              }
+              reject(error);
+            } else {
+              setTimeout(() => attempt(retriesLeft - 1), interval);
+            }
+          });
+      };
+      attempt(retries);
+    })
+  );
+};
 
-const CallModal = lazy(() => import('./components/CallModal').then(m => ({ default: m.CallModal })));
-const AeirmistCamera = lazy(() => import('./components/ui/AeirmistCamera').then(m => ({ default: m.AeirmistCamera })));
-const PaymentResult = lazy(() => import('./components/marketplace/PaymentResult').then(m => ({ default: m.PaymentResult })));
-const AccountSwitcher = lazy(() => import('./components/auth/AccountSwitcher').then(m => ({ default: m.AccountSwitcher })));
-const CompleteYourAccountScreen = lazy(() => import('./components/auth/CompleteYourAccountScreen').then(m => ({ default: m.CompleteYourAccountScreen })));
-const PasswordOnboardingModal = lazy(() => import('./components/auth/PasswordOnboardingModal').then(m => ({ default: m.PasswordOnboardingModal })));
-const SetupRequiredScreen = lazy(() => import('./components/auth/SetupScreens').then(m => ({ default: m.SetupRequiredScreen })));
-const PairingFailedScreen = lazy(() => import('./components/auth/SetupScreens').then(m => ({ default: m.PairingFailedScreen })));
-const PurgeScreen = lazy(() => import('./components/auth/SetupScreens').then(m => ({ default: m.PurgeScreen })));
-const DeactivatedScreen = lazy(() => import('./components/auth/SetupScreens').then(m => ({ default: m.DeactivatedScreen })));
-const BannedScreen = lazy(() => import('./components/auth/BannedScreen').then(m => ({ default: m.BannedScreen })));
+const HomeFeedSystem = lazyWithRetry(() => import('./components/feed/HomeFeedSystem').then(m => ({ default: m.HomeFeedSystem })));
+const Sidebar = lazyWithRetry(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })));
+const Messenger = lazyWithRetry(() => import('./components/Messenger'));
+const ExploreSystem = lazyWithRetry(() => import('./components/discover/ExploreSystem').then(m => ({ default: m.ExploreSystem })));
+const AeirmistDashboard = lazyWithRetry(() => import('./components/dashboard/AeirmistDashboard').then(m => ({ default: m.AeirmistDashboard })));
+const SettingsSystem = lazyWithRetry(() => import('./components/settings/SettingsSystem'));
+const NotificationCenter = lazyWithRetry(() => import('./components/notifications/NotificationCenter'));
+const ProfileSystem = lazyWithRetry(() => import('./components/profile/ProfileSystem'));
+const VideoFeed = lazyWithRetry(() => import('./components/videos/VideoFeed').then(m => ({ default: m.VideoFeed })));
+const AdminPanel = lazyWithRetry(() => import('./components/admin/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const CommunityGuidelines = lazyWithRetry(() => import('./components/legal/CommunityGuidelines'));
+
+const CallModal = lazyWithRetry(() => import('./components/CallModal').then(m => ({ default: m.CallModal })));
+const AeirmistCamera = lazyWithRetry(() => import('./components/ui/AeirmistCamera').then(m => ({ default: m.AeirmistCamera })));
+const PaymentResult = lazyWithRetry(() => import('./components/marketplace/PaymentResult').then(m => ({ default: m.PaymentResult })));
+const AccountSwitcher = lazyWithRetry(() => import('./components/auth/AccountSwitcher').then(m => ({ default: m.AccountSwitcher })));
+const CompleteYourAccountScreen = lazyWithRetry(() => import('./components/auth/CompleteYourAccountScreen').then(m => ({ default: m.CompleteYourAccountScreen })));
+const PasswordOnboardingModal = lazyWithRetry(() => import('./components/auth/PasswordOnboardingModal').then(m => ({ default: m.PasswordOnboardingModal })));
+const SetupRequiredScreen = lazyWithRetry(() => import('./components/auth/SetupScreens').then(m => ({ default: m.SetupRequiredScreen })));
+const PairingFailedScreen = lazyWithRetry(() => import('./components/auth/SetupScreens').then(m => ({ default: m.PairingFailedScreen })));
+const PurgeScreen = lazyWithRetry(() => import('./components/auth/SetupScreens').then(m => ({ default: m.PurgeScreen })));
+const DeactivatedScreen = lazyWithRetry(() => import('./components/auth/SetupScreens').then(m => ({ default: m.DeactivatedScreen })));
+const BannedScreen = lazyWithRetry(() => import('./components/auth/BannedScreen').then(m => ({ default: m.BannedScreen })));
 import { ToastNotification } from './components/notifications/ToastNotification';
 
 type PreloadComponent = 'feed' | 'messenger' | 'discover' | 'profile' | 'settings' | 'videos' | 'dashboard' | 'notifications' | 'admin';
@@ -203,16 +235,16 @@ function AppContent() {
   const [lastMainTab, setLastMainTab] = useState<Tab>('feed');
   const [showSafeExit, setShowSafeExit] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && loading) {
       setShowSplash(true);
       const timer = setTimeout(() => {
         setShowSplash(false);
       }, 4200);
       return () => clearTimeout(timer);
-    } else if (!loading) {
+    } else {
       setShowSplash(false);
     }
   }, [user?.uid, loading]);

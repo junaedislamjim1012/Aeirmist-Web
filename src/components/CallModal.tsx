@@ -372,7 +372,7 @@ export const CallModal: React.FC<CallModalProps> = ({ chat, type, onClose, isInc
                 participantId={participantId}
                 fallbackName={safeChat.name}
                 chatId={safeChat.id}
-                className="text-4xl font-black text-white tracking-tight drop-shadow-md uppercase"
+                className="text-3xl font-bold text-white tracking-tight drop-shadow-md"
               />
             </div>
 

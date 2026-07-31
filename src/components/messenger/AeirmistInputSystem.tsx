@@ -398,6 +398,9 @@ export const AeirmistInputSystem: React.FC<AeirmistInputSystemProps> = React.mem
                 autoResize();
               }}
               placeholder="Type a message..."
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               className="w-full bg-transparent border-none py-2.5 px-4 outline-none resize-none text-[14px] md:text-[15px] max-h-32 min-h-[40px] placeholder:text-white/30 font-medium tracking-tight text-white/95 leading-tight flex items-center"
               style={{ height: '40px' }}
               onKeyDown={(e) => {
