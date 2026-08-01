@@ -2927,7 +2927,7 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const keys = Object.keys(data).filter(k => data[k] !== undefined);
     
     // Basic fields sync faster/without strict regulation for better UX
-    const isBasicUpdate = keys.every(k => ['photoURL', 'coverURL', 'bannerURL', 'bio', 'displayName', 'tagline'].includes(k));
+    const isBasicUpdate = keys.every(k => ['photoURL', 'coverURL', 'bannerURL', 'bio', 'displayName', 'tagline', 'relationshipStatus', 'relationshipStatusVisibility', 'locationData'].includes(k));
     
     // Appearance settings have their own throttle key to avoid blocking unrelated profile updates
     const isAppearanceUpdate = keys.length === 1 && keys[0] === 'appearanceSettings';
@@ -2941,11 +2941,11 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     
     const allowedFields = [
-      'displayName', 'username', 'bio', 'description', 'tagline', 'photoURL', 'coverURL', 'bannerURL', 
-      'location', 'website', 'pronouns', 'socialLinks', 'category',
+      'displayName', 'username', 'bio', 'description', 'tagline', 'relationshipStatus', 'relationshipStatusVisibility', 'photoURL', 'coverURL', 'bannerURL', 
+      'location', 'locationData', 'website', 'pronouns', 'socialLinks', 'category',
       'privacySettings', 'themeSettings', 'aeirmistLevel', 'notificationSettings', 'messagingSettings', 'appearanceSettings',
       'isDeactivated', 'isProfileLocked', 'isProfessional', 'isPrivate', 'isCreatorSetup',
-      'fullName', 'phoneNumber', 'personalEmail', 'gender', 'dateOfBirth',
+      'fullName', 'phoneNumber', 'phoneCountryCode', 'phoneVerified', 'personalEmail', 'pendingEmailChange', 'gender', 'dateOfBirth',
       'hasPassword', 'passwordCreatedAt', 'lastPasswordChangedAt', 'twoFactorEnabled', 'recoveryEmail', 'recoveryPhone', 'securityQuestions', 'trustedDevices'
     ];
     
@@ -3762,6 +3762,8 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       photoURL: data.photoURL || activeUser.photoURL || "",
       bio: data.bio || "Account created.",
       tagline: data.tagline || "",
+      relationshipStatus: data.relationshipStatus || null,
+      relationshipStatusVisibility: data.relationshipStatusVisibility || 'public',
       location: data.location || "",
       website: data.website || "",
       pronouns: data.pronouns || "",

@@ -1191,7 +1191,11 @@ const ProfileSystem = ({ targetProfile, onMessageClick, onEditProfile, onUserCli
                      <p className="text-sm font-black text-aeirmist-cyan tracking-[0.15em] hover:drop-shadow-[0_0_5px_rgba(0,242,255,0.5)] transition-all cursor-pointer">@{displayUser?.username}</p>
                      {displayUser?.isVerified && <ShieldCheck size={14} className="text-aeirmist-cyan shrink-0" />}
                    </div>
-                   <span className="text-[9px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/30 font-black tracking-widest uppercase">{displayUser?.pronouns || 'HE/HIM'}</span>
+                   <span className="text-[9px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/30 font-black tracking-widest uppercase">
+                     {Array.isArray(displayUser?.pronouns) 
+                       ? displayUser.pronouns.join(' · ') 
+                       : (typeof displayUser?.pronouns === 'string' && displayUser.pronouns ? displayUser.pronouns : 'HE/HIM')}
+                   </span>
                 </div>
 
                 {/* Modern Holographic Aeirmist Core Widget */}

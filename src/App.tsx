@@ -969,7 +969,7 @@ function AppContent() {
                     className="h-full flex overflow-hidden lg:grid lg:grid-cols-[1fr_var(--right-panel-w)]"
                   >
                     <div className="flex-1 h-full overflow-y-auto scroll-smooth relative min-w-0">
-                      <div className="fluid-container pt-0 md:pt-6">
+                      <div className="fluid-container pt-0 md:pt-0">
                         <HomeFeedSystem onUserClick={handleUserClick} onCreate={handleCreatePostClick} onNavigate={(tab) => setActiveTab(tab as any)} />
                       </div>
                     </div>

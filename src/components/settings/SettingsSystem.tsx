@@ -207,9 +207,12 @@ const SettingsSystem = () => {
         username: profile.username || '',
         bio: profile.bio || '',
         tagline: profile.tagline || '',
+        relationshipStatus: profile.relationshipStatus || null,
+        relationshipStatusVisibility: profile.relationshipStatusVisibility || 'public',
         location: profile.location || '',
+        locationData: profile.locationData || null,
         website: profile.website || '',
-        pronouns: profile.pronouns || '',
+        pronouns: Array.isArray(profile.pronouns) ? profile.pronouns : (typeof profile.pronouns === 'string' && profile.pronouns ? profile.pronouns.split('·').map(s => s.trim()).filter(Boolean) : []),
         photoURL: profile.photoURL || '',
         bannerURL: profile.bannerURL || '',
         socialLinks: {
@@ -238,6 +241,11 @@ const SettingsSystem = () => {
         isProfessional: profile.isProfessional || false,
         fullName: profile.fullName || '',
         phoneNumber: profile.phoneNumber || '',
+        phoneCountryCode: profile.phoneCountryCode || '+1',
+        phoneVerified: profile.phoneVerified || false,
+        pendingEmailChange: profile.pendingEmailChange || null,
+        recoveryEmail: profile.recoveryEmail || '',
+        recoveryPhone: profile.recoveryPhone || '',
         personalEmail: profile.personalEmail || '',
         gender: profile.gender || '',
         dateOfBirth: profile.dateOfBirth || '',
@@ -413,11 +421,6 @@ const SettingsSystem = () => {
           }`}>
             <div>
               <h1 className="text-xl font-display font-bold bg-gradient-to-r from-aeirmist-cyan to-aeirmist-magenta bg-clip-text text-transparent">System Settings</h1>
-              <p className={`text-[9px] uppercase tracking-[0.2em] mt-0.5 font-bold ${isLight ? 'text-slate-600' : 'text-white/60'}`}>Control Panel Matrix</p>
-            </div>
-            <div className="flex items-center gap-1.5 bg-aeirmist-cyan/10 border border-aeirmist-cyan/25 px-2.5 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-aeirmist-cyan animate-pulse shadow-[0_0_8px_rgba(0,242,255,0.7)]" />
-              <span className="text-[8px] text-aeirmist-cyan font-mono font-bold uppercase tracking-wider">SECURE</span>
             </div>
           </div>
 
@@ -450,10 +453,7 @@ const SettingsSystem = () => {
             </div>
           </div>
 
-          {/* Settings Tab List or Search Results */}
-          <div className={`p-3 md:p-4 space-y-4 ${activeTab !== null ? 'hidden lg:block' : 'block'}`}>
-            <SettingsTabItem active={activeTab === 'account'} onClick={() => setActiveTab('account')} icon={<User />} label="Account" />
-          </div>
+
           <div className={`p-3 md:p-4 space-y-4 ${activeTab !== null ? 'hidden lg:block' : 'block'}`}>
             {searchQuery.trim() !== '' ? (
               <div className="space-y-2">
@@ -1092,7 +1092,7 @@ const ProfilePreview = ({ formData, activeTheme }: any) => {
         <div className="mt-6 pt-6 border-t border-white/5 flex flex-wrap gap-4 text-white/40 text-[11px]">
           {formData.location && <div className="flex items-center gap-2"><MapPin size={14}/> {formData.location}</div>}
           {formData.website && <div className="flex items-center gap-2 font-mono"><Globe size={14}/> {formData.website}</div>}
-          {formData.pronouns && <div className="flex items-center gap-2"><Info size={14}/> {formData.pronouns}</div>}
+          {(Array.isArray(formData.pronouns) ? formData.pronouns.length > 0 : formData.pronouns) && <div className="flex items-center gap-2"><Info size={14}/> {Array.isArray(formData.pronouns) ? formData.pronouns.join(' · ') : formData.pronouns}</div>}
         </div>
 
         <div className="mt-8 flex gap-3">

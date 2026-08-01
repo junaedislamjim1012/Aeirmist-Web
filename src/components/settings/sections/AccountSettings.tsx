@@ -3,11 +3,22 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, Camera, Mail, ShieldCheck, Phone, Calendar, MapPin, Globe, Info, 
   Trash2, Download, Check, AlertCircle, Save, FileText, CheckCircle2, 
-  X, RefreshCw, Eye, Sparkles, AlertTriangle, ShieldAlert, Award, Tag, LogOut, ExternalLink
+  X, RefreshCw, Eye, Sparkles, AlertTriangle, ShieldAlert, Award, Tag, LogOut, ExternalLink,
+  Heart, Users, Lock, ChevronDown
 } from 'lucide-react';
 import { getAvatarUrl } from '../../../lib/avatar';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { db, auth } from '../../../lib/firebase';
+import { 
+  sendEmailVerification, 
+  verifyBeforeUpdateEmail, 
+  reauthenticateWithCredential, 
+  EmailAuthProvider, 
+  reauthenticateWithPopup, 
+  GoogleAuthProvider, 
+  RecaptchaVerifier, 
+  linkWithPhoneNumber 
+} from 'firebase/auth';
 import { useTheme } from '../../../context/ThemeContext';
 
 interface AccountSettingsProps {
@@ -80,6 +91,277 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
   // Email state change
   const [newEmail, setNewEmail] = useState('');
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [isSendingEmailVerification, setIsSendingEmailVerification] = useState(false);
+  const [emailModalPassword, setEmailModalPassword] = useState('');
+  const [requiresPasswordReauth, setRequiresPasswordReauth] = useState(false);
+  const [emailModalError, setEmailModalError] = useState('');
+  const [isEmailChanging, setIsEmailChanging] = useState(false);
+
+  // Phone OTP states
+  const [phoneOtpStep, setPhoneOtpStep] = useState<'idle' | 'code'>('idle');
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [isPhoneVerifying, setIsPhoneVerifying] = useState(false);
+  const [isPhoneConfirming, setIsPhoneConfirming] = useState(false);
+
+  const handleSendEmailVerification = async () => {
+    if (!auth.currentUser) return;
+    setIsSendingEmailVerification(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      addToast?.({
+        title: 'VERIFICATION SENT',
+        message: 'A verification link has been sent to your primary email.',
+        type: 'success'
+      });
+    } catch (err: any) {
+      addToast?.({
+        title: 'VERIFICATION ERROR',
+        message: err.message || 'Could not send verification email.',
+        type: 'warning'
+      });
+    } finally {
+      setIsSendingEmailVerification(false);
+    }
+  };
+
+  const handleChangeEmailSubmit = async () => {
+    setEmailModalError('');
+    if (!newEmail || !newEmail.includes('@')) {
+      setEmailModalError('Please enter a valid email address.');
+      return;
+    }
+    if (!auth.currentUser) return;
+
+    setIsEmailChanging(true);
+    try {
+      try {
+        await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+      } catch (err: any) {
+        if (err.code === 'auth/requires-recent-login') {
+          const hasPasswordProvider = auth.currentUser.providerData.some(p => p.providerId === 'password');
+          if (hasPasswordProvider && !requiresPasswordReauth) {
+            setRequiresPasswordReauth(true);
+            setIsEmailChanging(false);
+            setEmailModalError('Recent login required. Please enter your password to confirm.');
+            return;
+          } else if (hasPasswordProvider && requiresPasswordReauth) {
+            if (!emailModalPassword) {
+              setEmailModalError('Please enter your password.');
+              setIsEmailChanging(false);
+              return;
+            }
+            const credential = EmailAuthProvider.credential(auth.currentUser.email!, emailModalPassword);
+            await reauthenticateWithCredential(auth.currentUser, credential);
+            await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+          } else {
+            await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+            await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+          }
+        } else if (err.code === 'auth/email-already-in-use') {
+          throw new Error('This email address is already in use by another account.');
+        } else if (err.code === 'auth/invalid-email') {
+          throw new Error('Please enter a valid email address.');
+        } else if (err.code === 'auth/wrong-password') {
+          throw new Error('Incorrect password. Please try again.');
+        } else {
+          throw err;
+        }
+      }
+
+      handleFieldChange('pendingEmailChange', newEmail);
+      await handleUpdate();
+      setShowEmailModal(false);
+      setNewEmail('');
+      setEmailModalPassword('');
+      setRequiresPasswordReauth(false);
+      addToast?.({
+        title: 'CONFIRMATION LINK SENT',
+        message: `A confirmation link has been sent to ${newEmail}. Your login email will update once clicked.`,
+        type: 'success'
+      });
+    } catch (err: any) {
+      setEmailModalError(err.message || 'Failed to update email.');
+    } finally {
+      setIsEmailChanging(false);
+    }
+  };
+
+  const handleVerifyPhoneClick = async () => {
+    setPhoneError('');
+    const phoneNumberVal = formData.phoneNumber || '';
+    const countryCode = formData.phoneCountryCode || '+1';
+    if (!phoneNumberVal.trim()) {
+      setPhoneError('Please enter a valid phone number.');
+      return;
+    }
+    if (!auth.currentUser) return;
+
+    setIsPhoneVerifying(true);
+    try {
+      if ((window as any).recaptchaVerifier) {
+        try { (window as any).recaptchaVerifier.clear(); } catch(e) {}
+      }
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {}
+      });
+      (window as any).recaptchaVerifier = verifier;
+
+      const fullNumber = `${countryCode}${phoneNumberVal.trim().replace(/^0+/, '')}`;
+      const confirmation = await linkWithPhoneNumber(auth.currentUser, fullNumber, verifier);
+      setConfirmationResult(confirmation);
+      setPhoneOtpStep('code');
+      addToast?.({
+        title: 'OTP SENT',
+        message: `Verification code sent to ${fullNumber}.`,
+        type: 'info'
+      });
+    } catch (err: any) {
+      if (err.code === 'auth/credential-already-in-use') {
+        setPhoneError('This phone number is already linked to another account.');
+      } else if (err.code === 'auth/invalid-phone-number') {
+        setPhoneError('Invalid phone number format.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setPhoneError('Too many attempts. Please try again later.');
+      } else {
+        setPhoneError(err.message || 'Failed to send verification code.');
+      }
+    } finally {
+      setIsPhoneVerifying(false);
+    }
+  };
+
+  const handleConfirmOtpCode = async () => {
+    setPhoneError('');
+    if (!otpCode || otpCode.length < 6) {
+      setPhoneError('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!confirmationResult) {
+      setPhoneError('No active verification session. Please resend code.');
+      return;
+    }
+
+    setIsPhoneConfirming(true);
+    try {
+      await confirmationResult.confirm(otpCode);
+      handleFieldChange('phoneVerified', true);
+      handleFieldChange('phoneCountryCode', formData.phoneCountryCode || '+1');
+      handleFieldChange('phoneNumber', formData.phoneNumber || '');
+      await handleUpdate();
+      setPhoneOtpStep('idle');
+      setOtpCode('');
+      setConfirmationResult(null);
+      addToast?.({
+        title: 'PHONE VERIFIED',
+        message: 'Your mobile number is successfully verified and linked.',
+        type: 'success'
+      });
+    } catch (err: any) {
+      if (err.code === 'auth/invalid-verification-code') {
+        setPhoneError('Invalid verification code. Please check and try again.');
+      } else if (err.code === 'auth/code-expired') {
+        setPhoneError('Verification code expired. Please request a new code.');
+      } else {
+        setPhoneError(err.message || 'Verification confirmation failed.');
+      }
+    } finally {
+      setIsPhoneConfirming(false);
+    }
+  };
+
+  // Relationship Status & Visibility dropdown states
+  const [isRelationshipDropdownOpen, setIsRelationshipDropdownOpen] = useState(false);
+  const [isVisibilityDropdownOpen, setIsVisibilityDropdownOpen] = useState(false);
+
+  const RELATIONSHIP_OPTIONS = [
+    "Status",
+    "Single",
+    "In a relationship",
+    "Engaged",
+    "Married",
+    "In a civil union",
+    "In a domestic partnership",
+    "In an open relationship",
+    "It's complicated",
+    "Separated",
+    "Divorced",
+    "Widowed"
+  ];
+
+  const VISIBILITY_OPTIONS = [
+    { id: 'public', label: 'Public', icon: Globe },
+    { id: 'friends', label: 'Friends Only', icon: Users },
+    { id: 'only_me', label: 'Only Me', icon: Lock },
+  ];
+
+  // Location Autocomplete states & dataset
+  const [locationSearchInput, setLocationSearchInput] = useState(formData.location || '');
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
+
+  // Pronouns Picker states & dataset
+  const [pronounsQuery, setPronounsQuery] = useState('');
+  const [isPronounsDropdownOpen, setIsPronounsDropdownOpen] = useState(false);
+
+  const WORLD_CITIES = [
+    { city: "New York", country: "United States", countryCode: "US" },
+    { city: "Los Angeles", country: "United States", countryCode: "US" },
+    { city: "San Francisco", country: "United States", countryCode: "US" },
+    { city: "Chicago", country: "United States", countryCode: "US" },
+    { city: "London", country: "United Kingdom", countryCode: "GB" },
+    { city: "Manchester", country: "United Kingdom", countryCode: "GB" },
+    { city: "Paris", country: "France", countryCode: "FR" },
+    { city: "Lyon", country: "France", countryCode: "FR" },
+    { city: "Tokyo", country: "Japan", countryCode: "JP" },
+    { city: "Osaka", country: "Japan", countryCode: "JP" },
+    { city: "Toronto", country: "Canada", countryCode: "CA" },
+    { city: "Vancouver", country: "Canada", countryCode: "CA" },
+    { city: "Sydney", country: "Australia", countryCode: "AU" },
+    { city: "Melbourne", country: "Australia", countryCode: "AU" },
+    { city: "Dhaka", country: "Bangladesh", countryCode: "BD" },
+    { city: "Dinajpur", country: "Bangladesh", countryCode: "BD" },
+    { city: "Chittagong", country: "Bangladesh", countryCode: "BD" },
+    { city: "Sylhet", country: "Bangladesh", countryCode: "BD" },
+    { city: "Berlin", country: "Germany", countryCode: "DE" },
+    { city: "Munich", country: "Germany", countryCode: "DE" },
+    { city: "Singapore", country: "Singapore", countryCode: "SG" },
+    { city: "Dubai", country: "United Arab Emirates", countryCode: "AE" },
+    { city: "Cairo", country: "Egypt", countryCode: "EG" },
+    { city: "São Paulo", country: "Brazil", countryCode: "BR" },
+    { city: "Rio de Janeiro", country: "Brazil", countryCode: "BR" },
+    { city: "Mexico City", country: "Mexico", countryCode: "MX" },
+    { city: "Seoul", country: "South Korea", countryCode: "KR" },
+    { city: "Rome", country: "Italy", countryCode: "IT" },
+    { city: "Milan", country: "Italy", countryCode: "IT" },
+    { city: "Madrid", country: "Spain", countryCode: "ES" },
+    { city: "Barcelona", country: "Spain", countryCode: "ES" },
+    { city: "Amsterdam", country: "Netherlands", countryCode: "NL" },
+    { city: "Stockholm", country: "Sweden", countryCode: "SE" },
+    { city: "Zurich", country: "Switzerland", countryCode: "CH" },
+    { city: "Vienna", country: "Austria", countryCode: "AT" },
+    { city: "Mumbai", country: "India", countryCode: "IN" },
+    { city: "New Delhi", country: "India", countryCode: "IN" },
+    { city: "Bangkok", country: "Thailand", countryCode: "TH" },
+    { city: "Buenos Aires", country: "Argentina", countryCode: "AR" },
+    { city: "Cape Town", country: "South Africa", countryCode: "ZA" },
+    { city: "Auckland", country: "New Zealand", countryCode: "NZ" },
+    { city: "Istanbul", country: "Turkey", countryCode: "TR" }
+  ];
+
+  const PRONOUN_SUGGESTIONS = [
+    "He/him",
+    "She/her",
+    "They/them",
+    "He/they",
+    "She/they",
+    "Ze/hir",
+    "Xe/xem",
+    "It/its",
+    "Any pronouns"
+  ];
 
   // Profile completion fields calculation
   const calculateCompletion = () => {
@@ -611,28 +893,113 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                 <p className={`text-[10px] ml-1 ${isLight ? 'text-slate-600' : 'text-white/70'}`}>Your full name shown on your public profile.</p>
               </div>
 
-              {/* Tagline Input */}
-              <div className="space-y-2">
+              {/* Relationship Status Selector */}
+              <div className="space-y-2 relative">
                 <div className="flex justify-between items-center">
-                  <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isLight ? 'text-slate-800' : 'text-white/90'}`}>Tagline / Status</label>
-                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{(formData.tagline || '').length}/100</span>
+                  <div className="flex items-center gap-2">
+                    <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isLight ? 'text-slate-800' : 'text-white/90'}`}>Status</label>
+                    
+                    {/* Visibility Toggle Chip */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsVisibilityDropdownOpen(!isVisibilityDropdownOpen)}
+                        className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-all ${
+                          isLight
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                            : 'bg-white/5 hover:bg-white/10 text-white/80 border border-white/10'
+                        }`}
+                      >
+                        {formData.relationshipStatusVisibility === 'friends' ? <Users size={10} /> :
+                         formData.relationshipStatusVisibility === 'only_me' ? <Lock size={10} /> : <Globe size={10} />}
+                        <span>
+                          {formData.relationshipStatusVisibility === 'friends' ? 'Friends Only' :
+                           formData.relationshipStatusVisibility === 'only_me' ? 'Only Me' : 'Public'}
+                        </span>
+                        <ChevronDown size={10} />
+                      </button>
+
+                      {/* Visibility Dropdown Menu */}
+                      {isVisibilityDropdownOpen && (
+                        <div className={`absolute left-0 mt-1.5 w-36 rounded-xl shadow-2xl z-50 overflow-hidden border py-1 ${
+                          isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
+                        }`}>
+                          {VISIBILITY_OPTIONS.map(vOpt => {
+                            const VIcon = vOpt.icon;
+                            const isSelected = (formData.relationshipStatusVisibility || 'public') === vOpt.id;
+                            return (
+                              <button
+                                key={vOpt.id}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('relationshipStatusVisibility', vOpt.id);
+                                  setIsVisibilityDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors ${
+                                  isLight ? 'hover:bg-slate-100' : 'hover:bg-white/5'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <VIcon size={12} className={isSelected ? 'text-aeirmist-cyan' : 'opacity-60'} />
+                                  <span>{vOpt.label}</span>
+                                </div>
+                                {isSelected && <Check size={12} className="text-aeirmist-cyan" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Main Selector Button */}
                 <div className="relative">
-                  <Sparkles className={`absolute left-4 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-500' : 'text-white/60'}`} size={15} />
-                  <input 
-                    type="text"
-                    maxLength={100}
-                    value={formData.tagline || ''}
-                    onChange={(e) => handleFieldChange('tagline', e.target.value)}
-                    placeholder="e.g. Creator & Developer"
-                    className={`w-full h-12 pl-11 pr-4 rounded-xl text-xs font-medium focus:border-aeirmist-cyan focus:outline-none transition-all ${
+                  <button
+                    type="button"
+                    onClick={() => setIsRelationshipDropdownOpen(!isRelationshipDropdownOpen)}
+                    className={`w-full h-12 pl-11 pr-4 rounded-xl text-xs font-medium flex items-center justify-between text-left transition-all ${
                       isLight
-                        ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-aeirmist-cyan/20'
-                        : 'bg-slate-800/90 border border-slate-600 text-white placeholder:text-slate-400 focus:bg-slate-800'
+                        ? 'bg-white border border-slate-300 text-slate-900 focus:ring-2 focus:ring-aeirmist-cyan/20'
+                        : 'bg-slate-800/90 border border-slate-600 text-white hover:border-slate-500'
                     }`}
-                  />
+                  >
+                    <Heart className={`absolute left-4 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-500' : 'text-white/60'}`} size={15} />
+                    <span className={!formData.relationshipStatus || formData.relationshipStatus === 'Status' ? (isLight ? 'text-slate-400' : 'text-slate-400') : ''}>
+                      {formData.relationshipStatus || 'Status'}
+                    </span>
+                    <ChevronDown size={14} className={isLight ? 'text-slate-500' : 'text-white/60'} />
+                  </button>
+
+                  {/* Relationship Options Dropdown Panel */}
+                  {isRelationshipDropdownOpen && (
+                    <div className={`absolute left-0 right-0 mt-1.5 rounded-xl shadow-2xl z-50 overflow-hidden border max-h-64 overflow-y-auto ${
+                      isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
+                    }`}>
+                      {RELATIONSHIP_OPTIONS.map(opt => {
+                        const currentVal = formData.relationshipStatus || 'Status';
+                        const isSelected = currentVal === opt || (opt === 'Status' && !formData.relationshipStatus);
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              handleFieldChange('relationshipStatus', opt === 'Status' ? null : opt);
+                              setIsRelationshipDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-4 py-3 text-xs text-left transition-colors ${
+                              isLight ? 'hover:bg-slate-100' : 'hover:bg-white/5'
+                            }`}
+                          >
+                            <span className={opt === 'Status' ? 'opacity-50 italic' : ''}>{opt}</span>
+                            {isSelected && <Check size={14} className="text-aeirmist-cyan" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <p className={`text-[10px] ml-1 ${isLight ? 'text-slate-600' : 'text-white/70'}`}>A short tagline or tagline displayed on your profile card.</p>
+                <p className={`text-[10px] ml-1 ${isLight ? 'text-slate-600' : 'text-white/70'}`}>Display your relationship status on your profile card.</p>
               </div>
             </div>
 
@@ -677,23 +1044,112 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                 </div>
               </div>
 
-              {/* Location Input */}
-              <div className="space-y-2">
+              {/* Location Autocomplete Input */}
+              <div className="space-y-2 relative">
                 <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isLight ? 'text-slate-800' : 'text-white/90'}`}>Location</label>
                 <div className="relative">
                   <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-500' : 'text-white/60'}`} size={15} />
                   <input 
                     type="text"
-                    value={formData.location || ''}
-                    onChange={(e) => handleFieldChange('location', e.target.value)}
-                    placeholder="e.g. San Francisco, CA"
-                    className={`w-full h-12 pl-11 pr-4 rounded-xl text-xs font-medium focus:border-aeirmist-cyan focus:outline-none transition-all ${
+                    value={locationSearchInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLocationSearchInput(val);
+                      setIsLocationDropdownOpen(true);
+                      setIsLocationLoading(true);
+                      setTimeout(() => setIsLocationLoading(false), 250);
+                      if (!val.trim()) {
+                        handleFieldChange('location', '');
+                        handleFieldChange('locationData', null);
+                      }
+                    }}
+                    onFocus={() => setIsLocationDropdownOpen(true)}
+                    placeholder="Search city, country..."
+                    className={`w-full h-12 pl-11 pr-10 rounded-xl text-xs font-medium focus:border-aeirmist-cyan focus:outline-none transition-all ${
                       isLight
                         ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-aeirmist-cyan/20'
                         : 'bg-slate-800/90 border border-slate-600 text-white placeholder:text-slate-400 focus:bg-slate-800'
                     }`}
                   />
+                  {/* Loading spinner or clear button */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {isLocationLoading ? (
+                      <div className="w-4 h-4 border-2 border-aeirmist-cyan border-t-transparent rounded-full animate-spin" />
+                    ) : locationSearchInput ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocationSearchInput('');
+                          handleFieldChange('location', '');
+                          handleFieldChange('locationData', null);
+                        }}
+                        className={`p-1 rounded-full hover:bg-white/10 ${isLight ? 'text-slate-500' : 'text-white/60'}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
+
+                {/* Location Dropdown Results */}
+                {isLocationDropdownOpen && (
+                  <div className={`absolute left-0 right-0 mt-1.5 rounded-xl shadow-2xl z-50 overflow-hidden border max-h-60 overflow-y-auto ${
+                    isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
+                  }`}>
+                    {(() => {
+                      const q = (locationSearchInput || '').toLowerCase().trim();
+                      const matches = WORLD_CITIES.filter(c => 
+                        !q || c.city.toLowerCase().includes(q) || c.country.toLowerCase().includes(q)
+                      ).slice(0, 6);
+
+                      if (matches.length === 0) {
+                        return (
+                          <div className={`px-4 py-3 text-xs italic ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+                            No matching location found
+                          </div>
+                        );
+                      }
+
+                      return matches.map(match => {
+                        const displayName = `${match.city}, ${match.country}`;
+                        return (
+                          <button
+                            key={displayName}
+                            type="button"
+                            onClick={() => {
+                              setLocationSearchInput(displayName);
+                              handleFieldChange('location', displayName);
+                              handleFieldChange('locationData', {
+                                city: match.city,
+                                country: match.country,
+                                countryCode: match.countryCode,
+                                displayName
+                              });
+                              setIsLocationDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs text-left transition-colors ${
+                              isLight ? 'hover:bg-slate-100' : 'hover:bg-white/5'
+                            }`}
+                          >
+                            <MapPin size={13} className="text-aeirmist-cyan shrink-0" />
+                            <span>
+                              {q ? (
+                                <>
+                                  {match.city.toLowerCase().includes(q) ? (
+                                    <span className="font-bold text-aeirmist-cyan">{match.city}</span>
+                                  ) : match.city}, {match.country.toLowerCase().includes(q) ? (
+                                    <span className="font-bold text-aeirmist-cyan">{match.country}</span>
+                                  ) : match.country}
+                                </>
+                              ) : displayName}
+                            </span>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+                <p className={`text-[10px] ml-1 ${isLight ? 'text-slate-600' : 'text-white/70'}`}>Select a verified worldwide city & country.</p>
               </div>
 
               {/* Category Dropdown */}
@@ -720,23 +1176,103 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-              {/* Pronouns */}
-              <div className="space-y-2">
+              {/* Pronouns Chips Picker */}
+              <div className="space-y-2 relative">
                 <label className={`text-xs font-bold uppercase tracking-wider ml-1 ${isLight ? 'text-slate-800' : 'text-white/90'}`}>Pronouns</label>
-                <div className="relative">
+                <div className={`w-full min-h-[48px] p-2 rounded-xl text-xs font-medium flex flex-wrap items-center gap-1.5 relative transition-all ${
+                  isLight
+                    ? 'bg-white border border-slate-300 text-slate-900 focus-within:ring-2 focus-within:ring-aeirmist-cyan/20'
+                    : 'bg-slate-800/90 border border-slate-600 text-white'
+                }`}>
                   <Info className={`absolute left-4 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-500' : 'text-white/60'}`} size={15} />
-                  <input 
-                    type="text"
-                    value={formData.pronouns || ''}
-                    onChange={(e) => handleFieldChange('pronouns', e.target.value)}
-                    placeholder="e.g. they/them"
-                    className={`w-full h-12 pl-11 pr-4 rounded-xl text-xs font-medium focus:border-aeirmist-cyan focus:outline-none transition-all ${
-                      isLight
-                        ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-aeirmist-cyan/20'
-                        : 'bg-slate-800/90 border border-slate-600 text-white placeholder:text-slate-400 focus:bg-slate-800'
-                    }`}
-                  />
+                  
+                  {/* Selected pronoun chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pl-7">
+                    {(Array.isArray(formData.pronouns) ? formData.pronouns : []).map((p: string, idx: number) => (
+                      <span key={p || idx} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-aeirmist-cyan/10 border border-aeirmist-cyan/30 text-aeirmist-cyan">
+                        <span>{p}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (formData.pronouns || []).filter((_: any, i: number) => i !== idx);
+                            handleFieldChange('pronouns', updated);
+                          }}
+                          className="hover:text-white transition-colors"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+
+                    {/* Input search box (hidden if 2 selected) */}
+                    {(!formData.pronouns || formData.pronouns.length < 2) && (
+                      <input 
+                        type="text"
+                        value={pronounsQuery}
+                        onChange={(e) => {
+                          setPronounsQuery(e.target.value);
+                          setIsPronounsDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsPronounsDropdownOpen(true)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace' && !pronounsQuery && formData.pronouns?.length > 0) {
+                            const updated = formData.pronouns.slice(0, -1);
+                            handleFieldChange('pronouns', updated);
+                          }
+                        }}
+                        placeholder={!formData.pronouns || formData.pronouns.length === 0 ? "Add pronouns (e.g. they/them)..." : "Add another..."}
+                        className={`bg-transparent border-none outline-none text-xs py-1 px-1 min-w-[120px] ${
+                          isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-white placeholder:text-slate-400'
+                        }`}
+                      />
+                    )}
+                  </div>
                 </div>
+
+                {/* Pronouns Suggestions Dropdown */}
+                {isPronounsDropdownOpen && (
+                  <div className={`absolute left-0 right-0 mt-1.5 rounded-xl shadow-2xl z-50 overflow-hidden border max-h-52 overflow-y-auto ${
+                    isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
+                  }`}>
+                    {(() => {
+                      const q = (pronounsQuery || '').toLowerCase().trim();
+                      const currentSelected = formData.pronouns || [];
+                      const filtered = PRONOUN_SUGGESTIONS.filter(item => 
+                        !currentSelected.includes(item) && (!q || item.toLowerCase().includes(q))
+                      );
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className={`px-4 py-3 text-xs italic ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+                            No matching pronouns found
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(item => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => {
+                            if (currentSelected.length < 2) {
+                              const updated = [...currentSelected, item];
+                              handleFieldChange('pronouns', updated);
+                              setPronounsQuery('');
+                              setIsPronounsDropdownOpen(false);
+                            }
+                          }}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 text-xs text-left transition-colors ${
+                            isLight ? 'hover:bg-slate-100' : 'hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="font-medium">{item}</span>
+                          <span className="text-[10px] opacity-40 uppercase tracking-wider">Select</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
+                <p className={`text-[10px] ml-1 ${isLight ? 'text-slate-600' : 'text-white/70'}`}>Choose up to 2 pronoun sets.</p>
               </div>
 
               {/* Birthday */}
@@ -782,12 +1318,12 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
             </div>
           </div>
 
-          {/* SECTION 3: CONTACT INFORMATION */}
+          {/* SECTION 3: CONTACT INFO */}
           <div id="contact-information" className="rounded-3xl bg-white/[0.02] border border-white/5 p-6 md:p-8 backdrop-blur-xl shadow-xl space-y-6">
             <div className="space-y-1 border-b border-white/5 pb-4">
               <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
                 <Mail size={18} className="text-aeirmist-cyan" />
-                Contact Credentials
+                Contact Info
               </h2>
               <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Secure connection endpoints and notification paths</p>
             </div>
@@ -796,12 +1332,15 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
             <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">Primary Registered Email</label>
               <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-aeirmist-cyan/10 flex items-center justify-center text-aeirmist-cyan">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-aeirmist-cyan/10 flex items-center justify-center text-aeirmist-cyan shrink-0">
                     <Mail size={18} />
                   </div>
-                  <div>
-                    <p className="text-xs font-mono font-bold text-white/85">{user?.email || 'unregistered@email.com'}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-mono font-bold text-white/85 break-all">{user?.email || 'unregistered@email.com'}</p>
+                    {formData.pendingEmailChange && (
+                      <p className="text-[10px] font-mono text-amber-400 mt-0.5 break-all">Pending change to: {formData.pendingEmailChange} (verify inbox)</p>
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {user?.emailVerified ? (
                         <>
@@ -818,19 +1357,15 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
                   {!user?.emailVerified && (
                     <button
                       type="button"
-                      onClick={() => {
-                        addToast?.({
-                          title: 'VERIFICATION SENT',
-                          message: 'A fresh verification ticket has been beamed to your registered email.',
-                          type: 'info'
-                        });
-                      }}
-                      className="px-3.5 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-aeirmist-cyan/10 border border-aeirmist-cyan/30 text-aeirmist-cyan hover:bg-aeirmist-cyan/20 transition-all cursor-pointer"
+                      onClick={handleSendEmailVerification}
+                      disabled={isSendingEmailVerification}
+                      className="px-3.5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-aeirmist-cyan/10 border border-aeirmist-cyan/30 text-aeirmist-cyan hover:bg-aeirmist-cyan/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
+                      {isSendingEmailVerification ? <RefreshCw className="animate-spin" size={10} /> : null}
                       Verify Email
                     </button>
                   )}
@@ -838,9 +1373,11 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                     type="button"
                     onClick={() => {
                       setNewEmail(user?.email || '');
+                      setEmailModalError('');
+                      setRequiresPasswordReauth(false);
                       setShowEmailModal(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition-all cursor-pointer"
+                    className="px-3.5 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition-all cursor-pointer text-center"
                   >
                     Change Email
                   </button>
@@ -848,60 +1385,116 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Phone Input with Country Selector */}
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">Verified Mobile (Phone)</label>
-                <div className="flex gap-2">
-                  <select className="w-20 h-12 bg-[#0b0e14]/50 border border-white/10 rounded-xl text-xs text-white/60 focus:outline-none transition-all cursor-pointer">
-                    <option value="+1">+1 US</option>
+            {/* Phone Verification Section */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">Verified Mobile (Phone)</label>
+              
+              {phoneError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{phoneError}</span>
+                </div>
+              )}
+
+              {phoneOtpStep === 'idle' ? (
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                  <select 
+                    value={formData.phoneCountryCode || '+1'}
+                    onChange={(e) => {
+                      handleFieldChange('phoneCountryCode', e.target.value);
+                      handleFieldChange('phoneVerified', false);
+                    }}
+                    className="w-full sm:w-28 h-12 bg-[#0b0e14]/50 border border-white/10 rounded-xl text-xs text-white/80 px-3 focus:outline-none focus:border-aeirmist-cyan transition-all cursor-pointer"
+                  >
+                    <option value="+1">+1 US/CA</option>
                     <option value="+44">+44 UK</option>
                     <option value="+880">+880 BD</option>
                     <option value="+91">+91 IN</option>
                     <option value="+81">+81 JP</option>
+                    <option value="+61">+61 AU</option>
+                    <option value="+49">+49 DE</option>
                   </select>
+
                   <div className="relative flex-1">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={14} />
                     <input 
                       type="tel"
                       value={formData.phoneNumber || ''}
-                      onChange={(e) => handleFieldChange('phoneNumber', e.target.value)}
+                      onChange={(e) => {
+                        handleFieldChange('phoneNumber', e.target.value);
+                        handleFieldChange('phoneVerified', false);
+                      }}
                       placeholder="Enter mobile digits..."
                       className="w-full h-12 pl-11 pr-4 bg-white/[0.03] border border-white/10 rounded-xl text-xs focus:border-aeirmist-cyan/50 focus:bg-white/[0.05] focus:outline-none transition-all text-white/80"
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* Verify Number Action button */}
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    addToast?.({
-                      title: 'PHONE VERIFIED',
-                      message: 'Mobile link successfully authenticated and paired.',
-                      type: 'success'
-                    });
-                  }}
-                  disabled={!formData.phoneNumber}
-                  className={`w-full h-12 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    formData.phoneNumber 
-                      ? 'bg-aeirmist-cyan/10 hover:bg-aeirmist-cyan/20 border-aeirmist-cyan/30 text-aeirmist-cyan'
-                      : 'bg-white/5 border-white/5 text-white/20 pointer-events-none'
-                  }`}
-                >
-                  <CheckCircle2 size={12} />
-                  Verify Mobile
-                </button>
-              </div>
+                  <div className="sm:w-44 shrink-0 flex items-center">
+                    {formData.phoneVerified ? (
+                      <div className="w-full h-12 rounded-xl bg-aeirmist-cyan/10 border border-aeirmist-cyan/30 text-aeirmist-cyan text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5">
+                        <ShieldCheck size={14} />
+                        Verified
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleVerifyPhoneClick}
+                        disabled={!formData.phoneNumber || isPhoneVerifying}
+                        className={`w-full h-12 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          formData.phoneNumber && !isPhoneVerifying
+                            ? 'bg-aeirmist-cyan/10 hover:bg-aeirmist-cyan/20 border-aeirmist-cyan/30 text-aeirmist-cyan'
+                            : 'bg-white/5 border-white/5 text-white/25 pointer-events-none'
+                        }`}
+                      >
+                        {isPhoneVerifying ? <RefreshCw className="animate-spin" size={12} /> : <CheckCircle2 size={12} />}
+                        {isPhoneVerifying ? 'Sending...' : 'Verify Mobile'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-white/[0.03] border border-aeirmist-cyan/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Enter 6-Digit Verification Code</span>
+                    <button 
+                      type="button"
+                      onClick={() => setPhoneOtpStep('idle')}
+                      className="text-xs text-white/50 hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div className="flex gap-3">
+                    <input 
+                      type="text"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="w-full sm:w-48 h-12 px-4 bg-[#0b0e14]/85 border border-white/15 focus:border-aeirmist-cyan rounded-xl text-sm tracking-widest font-mono text-white text-center focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleConfirmOtpCode}
+                      disabled={otpCode.length < 6 || isPhoneConfirming}
+                      className="flex-1 h-12 rounded-xl bg-aeirmist-cyan text-black text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isPhoneConfirming ? <RefreshCw className="animate-spin" size={14} /> : <Check size={14} />}
+                      {isPhoneConfirming ? 'Verifying Code...' : 'Confirm & Link'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Hidden Recaptcha Container for Phone Auth */}
+            <div id="recaptcha-container"></div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               {/* Recovery Email */}
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">Recovery Email</label>
-                <div className="relative">
+                <div className="relative min-w-0">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={14} />
                   <input 
                     type="email"
@@ -915,9 +1508,9 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
               </div>
 
               {/* Recovery Phone */}
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">Recovery Phone</label>
-                <div className="relative">
+                <div className="relative min-w-0">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={14} />
                   <input 
                     type="tel"
@@ -945,18 +1538,18 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* Field 1: Visibility */}
-              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl">
-                <span className="text-[8px] uppercase tracking-wider text-white/45 block mb-1">Account Visibility</span>
-                <span className="text-xs font-bold text-white font-mono">
-                  {formData.privacySettings?.privateProfile ? 'Private Account' : 'Public Account'}
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex flex-col justify-between min-h-[76px]">
+                <span className="text-[9px] uppercase tracking-wider text-white/45 block whitespace-nowrap truncate">Account Visibility</span>
+                <span className="text-xs font-bold text-white font-mono whitespace-nowrap truncate">
+                  {formData.privacySettings?.privateProfile ? 'Private' : 'Public'}
                 </span>
               </div>
 
               {/* Field 2: Verified */}
-              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex flex-col justify-between">
-                <span className="text-[8px] uppercase tracking-wider text-white/45 block mb-1">Verified Member</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-white font-mono">
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex flex-col justify-between min-h-[76px]">
+                <span className="text-[9px] uppercase tracking-wider text-white/45 block whitespace-nowrap truncate">Verified Member</span>
+                <div className="flex items-center gap-1.5 h-4">
+                  <span className="text-xs font-bold text-white font-mono whitespace-nowrap">
                     {profile?.isVerified ? 'Yes' : 'No'}
                   </span>
                   {profile?.isVerified && (
@@ -966,19 +1559,19 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
               </div>
 
               {/* Field 3: Member Since */}
-              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl">
-                <span className="text-[8px] uppercase tracking-wider text-white/45 block mb-1">Joined Network</span>
-                <span className="text-xs font-bold text-white font-mono">
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex flex-col justify-between min-h-[76px]">
+                <span className="text-[9px] uppercase tracking-wider text-white/45 block whitespace-nowrap truncate">Joined Network</span>
+                <span className="text-xs font-bold text-white font-mono whitespace-nowrap truncate">
                   {user?.metadata?.creationTime 
                     ? new Date(user.metadata.creationTime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-                    : 'July 10, 2026'}
+                    : 'Jul 10, 2026'}
                 </span>
               </div>
 
               {/* Field 4: Completion */}
-              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl">
-                <span className="text-[8px] uppercase tracking-wider text-white/45 block mb-1">Dossier Integrity</span>
-                <span className="text-xs font-bold text-aeirmist-cyan font-mono">
+              <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex flex-col justify-between min-h-[76px]">
+                <span className="text-[9px] uppercase tracking-wider text-white/45 block whitespace-nowrap truncate">Dossier Integrity</span>
+                <span className="text-xs font-bold text-aeirmist-cyan font-mono whitespace-nowrap truncate">
                   {completionPercentage}% Complete
                 </span>
               </div>
@@ -1242,9 +1835,10 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                   </span>
                 )}
 
-                {formData.tagline && (
-                  <p className="text-[10px] text-white/50 italic mt-3 bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-xl">
-                    "{formData.tagline}"
+                {formData.relationshipStatus && formData.relationshipStatus !== 'Status' && (
+                  <p className="text-[10px] text-aeirmist-cyan font-medium mt-3 bg-white/[0.02] border border-white/5 px-3 py-1.5 rounded-xl flex items-center justify-center gap-1.5">
+                    <Heart size={12} className="text-aeirmist-cyan" />
+                    <span>{formData.relationshipStatus}</span>
                   </p>
                 )}
 
@@ -1266,10 +1860,10 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                       <span className="truncate">{formData.website}</span>
                     </div>
                   )}
-                  {formData.pronouns && (
+                  {(Array.isArray(formData.pronouns) ? formData.pronouns.length > 0 : formData.pronouns) && (
                     <div className="flex items-center gap-2 text-[10px] text-white/40">
                       <Info size={12} className="text-aeirmist-cyan shrink-0" />
-                      <span className="truncate">{formData.pronouns}</span>
+                      <span className="truncate">{Array.isArray(formData.pronouns) ? formData.pronouns.join(' · ') : formData.pronouns}</span>
                     </div>
                   )}
                   {formData.gender && (
@@ -1484,59 +2078,60 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
               
               <div className="space-y-1 text-center">
                 <h3 className="text-base font-bold text-white uppercase tracking-wider">Change Primary Email</h3>
-                <p className="text-xs text-white/40">Enter your new connection address. You will be requested to verify this address.</p>
+                <p className="text-xs text-white/50">
+                  Enter your new address. A confirmation link will be sent to the new address; your login email does not change until you click that link.
+                </p>
               </div>
 
-              <div className="space-y-2 pt-2">
-                <label className="text-[8.5px] uppercase tracking-widest text-white/40 block">Proposed New Email Address</label>
-                <input 
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="name@gmail.com"
-                  className="w-full h-11 px-4 bg-[#0b0e14]/50 border border-white/10 focus:border-aeirmist-cyan rounded-xl text-xs text-white font-mono focus:outline-none transition-all"
-                />
+              {emailModalError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{emailModalError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] uppercase tracking-widest text-white/40 block font-bold">New Email Address</label>
+                  <input 
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="name@gmail.com"
+                    className="w-full h-11 px-4 bg-[#0b0e14]/50 border border-white/10 focus:border-aeirmist-cyan rounded-xl text-xs text-white font-mono focus:outline-none transition-all"
+                  />
+                </div>
+
+                {requiresPasswordReauth && (
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] uppercase tracking-widest text-white/40 block font-bold">Confirm Account Password</label>
+                    <input 
+                      type="password"
+                      value={emailModalPassword}
+                      onChange={(e) => setEmailModalPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full h-11 px-4 bg-[#0b0e14]/50 border border-white/10 focus:border-aeirmist-cyan rounded-xl text-xs text-white font-mono focus:outline-none transition-all"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowEmailModal(false)}
-                  className="py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/5 text-white/60 hover:text-white"
+                  className="py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/5 text-white/60 hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (!newEmail || !newEmail.includes('@')) {
-                      addToast?.({
-                        title: 'INVALID EMAIL',
-                        message: 'Please provide a valid email format.',
-                        type: 'warning'
-                      });
-                      return;
-                    }
-                    try {
-                      // Perform field change & notify
-                      handleFieldChange('personalEmail', newEmail);
-                      addToast?.({
-                        title: 'EMAIL UPDATED',
-                        message: 'Your registered email address has been updated.',
-                        type: 'success'
-                      });
-                      setShowEmailModal(false);
-                    } catch (err: any) {
-                      addToast?.({
-                        title: 'UPDATE ERROR',
-                        message: err.message || 'Could not update email.',
-                        type: 'warning'
-                      });
-                    }
-                  }}
-                  className="py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-aeirmist-cyan text-black hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_10px_rgba(0,242,255,0.2)]"
+                  onClick={handleChangeEmailSubmit}
+                  disabled={isEmailChanging}
+                  className="py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-aeirmist-cyan text-black hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_10px_rgba(0,242,255,0.2)] disabled:opacity-50"
                 >
-                  Update Email
+                  {isEmailChanging ? <RefreshCw className="animate-spin" size={12} /> : null}
+                  {isEmailChanging ? 'Updating...' : 'Update Email'}
                 </button>
               </div>
             </motion.div>
