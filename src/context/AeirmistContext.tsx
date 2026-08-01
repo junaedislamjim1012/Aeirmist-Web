@@ -2946,7 +2946,8 @@ export const AeirmistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       'privacySettings', 'themeSettings', 'aeirmistLevel', 'notificationSettings', 'messagingSettings', 'appearanceSettings',
       'isDeactivated', 'isProfileLocked', 'isProfessional', 'isPrivate', 'isCreatorSetup',
       'fullName', 'phoneNumber', 'phoneCountryCode', 'phoneVerified', 'personalEmail', 'pendingEmailChange', 'gender', 'dateOfBirth',
-      'hasPassword', 'passwordCreatedAt', 'lastPasswordChangedAt', 'twoFactorEnabled', 'recoveryEmail', 'recoveryPhone', 'securityQuestions', 'trustedDevices'
+      'hasPassword', 'passwordCreatedAt', 'lastPasswordChangedAt', 'twoFactorEnabled', 'recoveryEmail', 'recoveryPhone', 'securityQuestions', 'trustedDevices',
+      'lastReactivatedAt', 'deletionRequestedAt', 'deletionScheduledFor', 'deactivatedAt', 'deactivationDuration', 'deactivationReturnDate', 'deactivationReason'
     ];
     
     const updateData: any = {

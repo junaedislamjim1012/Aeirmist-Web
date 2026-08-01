@@ -4,7 +4,7 @@ import {
   User, Camera, Mail, ShieldCheck, Phone, Calendar, MapPin, Globe, Info, 
   Trash2, Download, Check, AlertCircle, Save, FileText, CheckCircle2, 
   X, RefreshCw, Eye, Sparkles, AlertTriangle, ShieldAlert, Award, Tag, LogOut, ExternalLink,
-  Heart, Users, Lock, ChevronDown
+  Heart, Users, Lock, ChevronDown, ChevronRight, ChevronLeft, Clock, PauseCircle, UserX, Edit2
 } from 'lucide-react';
 import { getAvatarUrl } from '../../../lib/avatar';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -74,7 +74,8 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
   const isLight = activeTheme?.isLight;
 
   // Username Checker States
-  const [usernameInput, setUsernameInput] = useState(formData.username || '');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [isChangingUsername, setIsChangingUsername] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
   const [usernameError, setUsernameError] = useState('');
@@ -87,6 +88,159 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isProcessingDangerAction, setIsProcessingDangerAction] = useState(false);
+
+  // Collapsible Danger Zone State
+  const [isDangerZoneExpanded, setIsDangerZoneExpanded] = useState(false);
+  const [isUsernameRulesExpanded, setIsUsernameRulesExpanded] = useState(false);
+
+  // Meta-style Guided Deactivate / Delete Modal States
+  const [showMetaModal, setShowMetaModal] = useState(false);
+  const [metaModalStep, setMetaModalStep] = useState<
+    'choice' | 'deactivate_duration' | 'deactivate_reason' | 'deactivate_confirm' | 'delete_interstitial' | 'delete_reason' | 'delete_confirm'
+  >('choice');
+  const [deactivateDuration, setDeactivateDuration] = useState<
+    '1_day' | '1_week' | '1_month' | '3_months' | 'manual'
+  >('manual');
+  const [deactivateReason, setDeactivateReason] = useState('Taking a break');
+  const [deleteReason, setDeleteReason] = useState('Creating a new account');
+  const [deleteInputText, setDeleteInputText] = useState('');
+
+  // Cooldown calculation (5 days after last reactivation)
+  const lastReactivatedMs = profile?.lastReactivatedAt ? new Date(profile.lastReactivatedAt).getTime() : 0;
+  const fiveDaysMs = 5 * 24 * 60 * 60 * 1000;
+  const cooldownEndDate = new Date(lastReactivatedMs + fiveDaysMs);
+  const isDeactivationInCooldown = lastReactivatedMs > 0 && Date.now() < (lastReactivatedMs + fiveDaysMs);
+  const cooldownDateString = cooldownEndDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const computeReturnDate = (duration: string) => {
+    const now = new Date();
+    if (duration === '1_day') {
+      now.setDate(now.getDate() + 1);
+    } else if (duration === '1_week') {
+      now.setDate(now.getDate() + 7);
+    } else if (duration === '1_month') {
+      now.setDate(now.getDate() + 30);
+    } else if (duration === '3_months') {
+      now.setDate(now.getDate() + 90);
+    } else {
+      return null;
+    }
+    return now;
+  };
+
+  const formatReturnDateText = (duration: string) => {
+    const d = computeReturnDate(duration);
+    if (!d) return "Your account stays deactivated until you log back in — there's no automatic return date.";
+    return `Your account will automatically turn back on ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  };
+
+  const openMetaAccountModal = (initialTab: 'choice' | 'deactivate' | 'delete') => {
+    setShowMetaModal(true);
+    setDeleteInputText('');
+    if (initialTab === 'deactivate') {
+      setMetaModalStep('deactivate_duration');
+    } else if (initialTab === 'delete') {
+      setMetaModalStep('delete_interstitial');
+    } else {
+      setMetaModalStep('choice');
+    }
+  };
+
+  const handleMetaModalStepBack = () => {
+    if (metaModalStep === 'deactivate_duration' || metaModalStep === 'delete_interstitial') {
+      setMetaModalStep('choice');
+    } else if (metaModalStep === 'deactivate_reason') {
+      setMetaModalStep('deactivate_duration');
+    } else if (metaModalStep === 'deactivate_confirm') {
+      setMetaModalStep('deactivate_reason');
+    } else if (metaModalStep === 'delete_reason') {
+      setMetaModalStep('delete_interstitial');
+    } else if (metaModalStep === 'delete_confirm') {
+      setMetaModalStep('delete_reason');
+    } else {
+      setShowMetaModal(false);
+    }
+  };
+
+  const handleConfirmDeactivationSubmit = async () => {
+    if (isDeactivationInCooldown) {
+      addToast?.({
+        title: 'DEACTIVATION COOLDOWN',
+        message: `You can deactivate again starting ${cooldownDateString}.`,
+        type: 'warning'
+      });
+      return;
+    }
+    setIsProcessingDangerAction(true);
+    try {
+      const returnDateObj = computeReturnDate(deactivateDuration);
+      handleFieldChange('isDeactivated', true);
+      handleFieldChange('deactivatedAt', new Date().toISOString());
+      handleFieldChange('deactivationDuration', deactivateDuration);
+      handleFieldChange('deactivationReturnDate', returnDateObj ? returnDateObj.toISOString() : null);
+      handleFieldChange('deactivationReason', deactivateReason);
+      await handleUpdate();
+      
+      addToast?.({
+        title: 'ACCOUNT DEACTIVATED',
+        message: returnDateObj 
+          ? `Your account will auto-reactivate on ${returnDateObj.toLocaleDateString()}.`
+          : 'Your account is deactivated. Log back in anytime to restore.',
+        type: 'info'
+      });
+      setShowMetaModal(false);
+      if (auth.currentUser) {
+        await auth.signOut();
+      }
+    } catch (err: any) {
+      addToast?.({
+        title: 'DEACTIVATION ERROR',
+        message: err.message || 'Could not deactivate account.',
+        type: 'warning'
+      });
+    } finally {
+      setIsProcessingDangerAction(false);
+    }
+  };
+
+  const handleConfirmDeletionScheduleSubmit = async () => {
+    if (deleteInputText.trim() !== 'DELETE') {
+      addToast?.({
+        title: 'CONFIRMATION MISMATCH',
+        message: 'Please type DELETE to confirm permanent deletion schedule.',
+        type: 'warning'
+      });
+      return;
+    }
+    setIsProcessingDangerAction(true);
+    try {
+      const requestedAt = new Date();
+      const scheduledFor = new Date(requestedAt.getTime() + 69 * 24 * 60 * 60 * 1000);
+      
+      handleFieldChange('deletionRequestedAt', requestedAt.toISOString());
+      handleFieldChange('deletionScheduledFor', scheduledFor.toISOString());
+      handleFieldChange('isDeactivated', true);
+      await handleUpdate();
+
+      addToast?.({
+        title: 'DELETION SCHEDULED',
+        message: `Account scheduled for deletion on ${scheduledFor.toLocaleDateString()}. Logging in before then will cancel deletion.`,
+        type: 'info'
+      });
+      setShowMetaModal(false);
+      if (auth.currentUser) {
+        await auth.signOut();
+      }
+    } catch (err: any) {
+      addToast?.({
+        title: 'DELETION SCHEDULE ERROR',
+        message: err.message || 'Could not schedule account deletion.',
+        type: 'warning'
+      });
+    } finally {
+      setIsProcessingDangerAction(false);
+    }
+  };
 
   // Email state change
   const [newEmail, setNewEmail] = useState('');
@@ -429,27 +583,32 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   // Username validation logic
   useEffect(() => {
-    if (!usernameInput) {
+    if (!isChangingUsername || !usernameInput) {
       setUsernameStatus('idle');
       setUsernameError('');
+      setCheckingUsername(false);
       return;
     }
 
-    if (usernameInput.toLowerCase() === (profile?.username || '').toLowerCase()) {
-      setUsernameStatus('available');
+    const currentHandle = (profile?.username || formData.username || '').toLowerCase();
+    if (usernameInput.toLowerCase() === currentHandle) {
+      setUsernameStatus('idle');
       setUsernameError('');
+      setCheckingUsername(false);
       return;
     }
 
     if (usernameInput.length < 3) {
       setUsernameStatus('invalid');
       setUsernameError('Username must be at least 3 characters.');
+      setCheckingUsername(false);
       return;
     }
 
     if (usernameInput.length > 30) {
       setUsernameStatus('invalid');
       setUsernameError('Username must be 30 characters or less.');
+      setCheckingUsername(false);
       return;
     }
 
@@ -457,6 +616,7 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
     if (!regex.test(usernameInput)) {
       setUsernameStatus('invalid');
       setUsernameError('Only lowercase letters, numbers, underscores, and periods are allowed.');
+      setCheckingUsername(false);
       return;
     }
 
@@ -488,20 +648,14 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
     }, 500);
 
     return () => clearTimeout(debounce);
-  }, [usernameInput, profile?.username]);
+  }, [usernameInput, profile?.username, formData.username, isChangingUsername]);
 
   const applyUsernameSuggestion = (suggestion: string) => {
     setUsernameInput(suggestion);
-    handleFieldChange('username', suggestion);
-    addToast?.({
-      title: 'SUGGESTION APPLIED',
-      message: `Username updated to @${suggestion}`,
-      type: 'success'
-    });
   };
 
   const commitUsernameChange = async () => {
-    if (usernameStatus !== 'available') {
+    if (usernameStatus !== 'available' || !usernameInput) {
       addToast?.({
         title: 'INVALID USERNAME',
         message: 'Please choose an available username first.',
@@ -509,11 +663,15 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
       });
       return;
     }
-    handleFieldChange('username', usernameInput);
+    const cleanUsername = usernameInput.toLowerCase().trim();
+    handleFieldChange('username', cleanUsername);
+    setIsChangingUsername(false);
+    setUsernameInput('');
+    setUsernameStatus('idle');
     addToast?.({
-      title: 'USERNAME SET',
-      message: 'Username set in state. Please commit your changes to apply.',
-      type: 'info'
+      title: 'USERNAME CLAIMED',
+      message: `Username changed to @${cleanUsername}. Save changes to finalize.`,
+      type: 'success'
     });
   };
 
@@ -1588,189 +1746,318 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
               <p className="text-xs text-white/40 uppercase tracking-widest font-bold">Manage your exclusive unique social address</p>
             </div>
 
-            <div className="space-y-4">
-              {/* Current Username Info */}
-              <div className="flex justify-between items-center text-xs font-mono bg-white/[0.01] p-3 rounded-xl border border-white/5">
-                <span className="text-white/40">Current Registered handle:</span>
-                <span className="text-aeirmist-cyan font-bold">@{profile?.username || 'unregistered'}</span>
-              </div>
-
-              {/* Change Handle Input Field */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 ml-1">New Proposed Username</label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-aeirmist-cyan font-mono font-bold text-xs">@</span>
-                    <input 
-                      type="text"
-                      value={usernameInput}
-                      onChange={(e) => setUsernameInput(e.target.value.toLowerCase().trim())}
-                      placeholder="unique_id"
-                      className="w-full h-12 pl-8 pr-4 bg-white/[0.03] border border-white/10 rounded-xl text-xs focus:border-aeirmist-cyan/50 focus:bg-white/[0.05] focus:outline-none transition-all text-white/80 font-mono"
-                    />
+            <div className="space-y-6">
+              {/* ZONE 1 — Current Username (read-only display) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.01] border border-white/5 space-y-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 block">
+                    Your Username
+                  </span>
+                  <div className="text-base sm:text-lg font-mono font-bold flex items-center tracking-wide">
+                    <span className="text-aeirmist-cyan">@</span>
+                    <span className="text-white">{formData.username || profile?.username || 'unregistered'}</span>
                   </div>
-                  
+                </div>
+
+                {!isChangingUsername && (
                   <button
                     type="button"
-                    onClick={commitUsernameChange}
-                    disabled={usernameStatus !== 'available' || checkingUsername}
-                    className={`h-12 px-6 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      usernameStatus === 'available' && !checkingUsername
-                        ? 'bg-aeirmist-cyan text-black hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(0,242,255,0.3)]'
-                        : 'bg-white/5 border border-white/5 text-white/20 pointer-events-none'
-                    }`}
+                    onClick={() => {
+                      setIsChangingUsername(true);
+                      setUsernameInput('');
+                      setUsernameStatus('idle');
+                      setUsernameError('');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer w-fit group"
                   >
-                    Claim Username
+                    <Edit2 size={14} className="text-aeirmist-cyan group-hover:scale-110 transition-transform" />
+                    <span>Change Username</span>
                   </button>
-                </div>
-
-                {/* Validation Status Message */}
-                <div className="mt-1.5 min-h-[16px]">
-                  {checkingUsername && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-white/40 animate-pulse">
-                      <RefreshCw size={10} className="animate-spin" />
-                      Scanning global registries...
-                    </div>
-                  )}
-                  {!checkingUsername && usernameStatus === 'available' && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-aeirmist-lime font-bold">
-                      <Check size={12} />
-                      Handle is available and ready for pairing!
-                    </div>
-                  )}
-                  {!checkingUsername && usernameStatus === 'taken' && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-aeirmist-magenta font-bold">
-                      <X size={12} />
-                      This address is already allocated to another member.
-                    </div>
-                  )}
-                  {!checkingUsername && usernameStatus === 'invalid' && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-aeirmist-magenta font-bold">
-                      <AlertCircle size={12} />
-                      {usernameError}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Handle suggestions when taken */}
-              {!checkingUsername && usernameStatus === 'taken' && (
-                <div className="bg-aeirmist-magenta/5 border border-aeirmist-magenta/25 rounded-2xl p-4 space-y-3">
-                  <span className="text-[9px] uppercase tracking-wider text-aeirmist-magenta font-black">Available Suggestions:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {usernameSuggestions.map((sug) => (
+              {/* ZONE 2 — Change Username (form & status) */}
+              <AnimatePresence>
+                {isChangingUsername && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden pt-2 border-t border-white/5 space-y-3"
+                  >
+                    <div className="flex items-center justify-between ml-1">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35 block">
+                        New Username
+                      </label>
                       <button
-                        key={sug}
                         type="button"
-                        onClick={() => applyUsernameSuggestion(sug)}
-                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono text-white/80 hover:text-white transition-colors cursor-pointer"
+                        onClick={() => {
+                          setIsChangingUsername(false);
+                          setUsernameInput('');
+                          setUsernameStatus('idle');
+                          setUsernameError('');
+                        }}
+                        className="text-xs font-mono text-white/40 hover:text-white transition-colors cursor-pointer"
                       >
-                        @{sug}
+                        Cancel
                       </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
 
-              {/* Username rules */}
-              <div className="bg-white/[0.01] border border-white/5 rounded-2xl p-4 text-[9px] text-white/35 space-y-2">
-                <span className="font-bold text-white/50 uppercase tracking-widest block">Handle Allocation Rules:</span>
-                <ul className="list-disc pl-4 space-y-1 leading-relaxed">
-                  <li>Handles must contain at least 3 characters and no more than 30 characters.</li>
-                  <li>Only standard lowercase alphanumeric characters, underscores (<code className="font-mono text-white/65">_</code>), and periods (<code className="font-mono text-white/65">.</code>) are allowed.</li>
-                  <li>Handles cannot start or end with punctuation, and cannot contain double symbols.</li>
-                </ul>
+                    {/* Input Field with @ Prefix */}
+                    <div className="relative w-full">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-aeirmist-cyan font-mono font-bold text-sm select-none">
+                        @
+                      </span>
+                      <input 
+                        autoFocus
+                        type="text"
+                        value={usernameInput}
+                        onChange={(e) => setUsernameInput(e.target.value.toLowerCase().trim())}
+                        placeholder="Enter a new username"
+                        className="w-full h-12 pl-9 pr-4 bg-white/[0.03] border border-white/10 rounded-xl text-xs font-mono text-white placeholder:text-white/20 focus:border-aeirmist-cyan/50 focus:bg-white/[0.05] focus:outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Attached Real-Time Status Line */}
+                    <div className="min-h-[22px] px-1 space-y-2">
+                      {checkingUsername && (
+                        <div className="flex items-center gap-2 text-xs font-mono text-white/40">
+                          <RefreshCw size={12} className="animate-spin text-aeirmist-cyan" />
+                          <span>Checking availability...</span>
+                        </div>
+                      )}
+
+                      {!checkingUsername && usernameInput && usernameInput.toLowerCase() === (profile?.username || formData.username || '').toLowerCase() && (
+                        <p className="text-xs font-mono text-white/40">This is already your username.</p>
+                      )}
+
+                      {!checkingUsername && usernameInput && usernameInput.toLowerCase() !== (profile?.username || formData.username || '').toLowerCase() && (
+                        <>
+                          {usernameStatus === 'available' && (
+                            <div className="flex items-center gap-2 text-xs font-mono text-aeirmist-lime font-bold">
+                              <Check size={14} className="shrink-0" />
+                              <span>@{usernameInput} is available</span>
+                            </div>
+                          )}
+
+                          {usernameStatus === 'taken' && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-xs font-mono text-aeirmist-magenta font-bold">
+                                <X size={14} className="shrink-0" />
+                                <span>@{usernameInput} is already taken</span>
+                              </div>
+
+                              {usernameSuggestions.length > 0 && (
+                                <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                                  <span className="text-[10px] text-white/40 font-mono">Suggestions:</span>
+                                  {usernameSuggestions.slice(0, 3).map((sug) => (
+                                    <button
+                                      key={sug}
+                                      type="button"
+                                      onClick={() => applyUsernameSuggestion(sug)}
+                                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono text-white/80 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      @{sug}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {usernameStatus === 'invalid' && (
+                            <div className="flex items-center gap-2 text-xs font-mono text-aeirmist-magenta font-bold">
+                              <AlertCircle size={14} className="shrink-0" />
+                              <span>{usernameError || 'Usernames can only contain letters, numbers, periods, and underscores'}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Full-width Claim Button */}
+                    <button
+                      type="button"
+                      onClick={commitUsernameChange}
+                      disabled={usernameStatus !== 'available' || checkingUsername || !usernameInput || usernameInput.toLowerCase() === (profile?.username || formData.username || '').toLowerCase()}
+                      className={`w-full h-12 rounded-xl text-xs font-bold uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 mt-1 ${
+                        usernameStatus === 'available' && !checkingUsername && usernameInput && usernameInput.toLowerCase() !== (profile?.username || formData.username || '').toLowerCase()
+                          ? 'bg-aeirmist-cyan text-black hover:brightness-110 active:scale-[0.99] shadow-[0_0_15px_rgba(0,242,255,0.3)]'
+                          : 'bg-white/5 border border-white/5 text-white/20 cursor-not-allowed pointer-events-none'
+                      }`}
+                    >
+                      Claim Username
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ZONE 3 — Username Rules (Collapsed Disclosure Row) */}
+              <div className="pt-2">
+                <div className="rounded-xl border border-white/5 bg-white/[0.01] overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsUsernameRulesExpanded(!isUsernameRulesExpanded)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Info size={14} className="text-white/40 group-hover:text-white/70 transition-colors" />
+                      <span className="text-[11px] font-medium text-white/50 group-hover:text-white/80 transition-colors">
+                        Username Rules
+                      </span>
+                    </div>
+                    <ChevronDown 
+                      size={14} 
+                      className={`text-white/30 group-hover:text-white/60 transition-transform duration-200 ${isUsernameRulesExpanded ? 'rotate-180' : ''}`} 
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {isUsernameRulesExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="overflow-hidden border-t border-white/5 bg-black/20"
+                      >
+                        <div className="p-4 space-y-2 text-[11px] text-white/50 leading-relaxed font-normal">
+                          <ul className="list-disc pl-4 space-y-1">
+                            <li>3–30 characters in length</li>
+                            <li>Only lowercase letters, numbers, underscores (<code className="font-mono text-white/70">_</code>), and periods (<code className="font-mono text-white/70">.</code>)</li>
+                            <li>Cannot start or end with a period or contain double symbols</li>
+                            <li>Must be unique across the entire Aeirmist network</li>
+                          </ul>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* SECTION 6: ACCOUNT ACTIONS (Danger Zone) */}
-          <div className="rounded-3xl border border-red-500/10 bg-red-500/[0.01] p-6 md:p-8 backdrop-blur-xl shadow-xl space-y-6">
-            <div className="space-y-1 border-b border-red-500/10 pb-4">
-              <h2 className="text-xl font-display font-bold text-red-400 flex items-center gap-2">
-                <ShieldAlert size={18} className="text-red-400" />
-                Danger Zone & Data Actions
-              </h2>
-              <p className="text-xs text-red-500/40 uppercase tracking-widest font-bold">Sensitive actions regarding data extraction and profile integrity</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Download My Data card */}
-              <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] flex flex-col justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">Download My Social Data</h4>
-                  <p className="text-[10px] text-white/35 leading-relaxed mt-1">Get a complete machine-readable archive of your profile details, connections, and metadata in JSON format.</p>
+          {/* SECTION 6: ACCOUNT ACTIONS (Danger Zone - Collapsible) */}
+          <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.02] overflow-hidden backdrop-blur-xl shadow-md transition-all">
+            <button
+              type="button"
+              onClick={() => setIsDangerZoneExpanded(!isDangerZoneExpanded)}
+              className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <AlertTriangle size={16} className="text-amber-400/80 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-medium text-white/90 group-hover:text-white transition-colors">
+                    Danger Zone & Data Actions
+                  </h3>
+                  <p className="text-[10px] text-white/40 font-normal truncate">
+                    Sensitive actions regarding data extraction and profile integrity
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDownloadConfirm(true)}
-                  className="w-full py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Download size={12} />
-                  Download Data Package
-                </button>
               </div>
+              <ChevronDown 
+                size={16} 
+                className={`text-white/40 group-hover:text-white transition-transform duration-200 shrink-0 ml-2 ${isDangerZoneExpanded ? 'rotate-180' : ''}`} 
+              />
+            </button>
 
-              {/* Export Profile card */}
-              <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.01] flex flex-col justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">Export Social Profile</h4>
-                  <p className="text-[10px] text-white/35 leading-relaxed mt-1">Directly generate a portable copy of your public profile settings and links to transfer or back up.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const profileData = JSON.stringify(formData, null, 2);
-                    navigator.clipboard.writeText(profileData);
-                    addToast?.({
-                      title: 'COPIED TO CLIPBOARD',
-                      message: 'Profile configuration JSON has been exported to your clipboard.',
-                      type: 'success'
-                    });
-                  }}
-                  className="w-full py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center gap-1.5 cursor-pointer"
+            <AnimatePresence>
+              {isDangerZoneExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className="overflow-hidden border-t border-white/5 bg-black/20"
                 >
-                  <FileText size={12} />
-                  Copy Config JSON
-                </button>
-              </div>
-            </div>
+                  <div className="p-3 space-y-2">
+                    {/* Action 1: Download My Social Data */}
+                    <button
+                      type="button"
+                      onClick={() => setShowDownloadConfirm(true)}
+                      className="w-full p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 flex items-center justify-between transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Download size={14} className="text-aeirmist-cyan shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-white/90 group-hover:text-white">Download My Social Data</p>
+                          <p className="text-[10px] text-white/40 font-normal truncate">JSON export archive of profile details, connections & metadata</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-white/30 group-hover:text-white/70 transition-colors shrink-0 ml-2" />
+                    </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {/* Deactivate account card */}
-              <div className="p-5 rounded-2xl border border-red-500/10 bg-red-500/[0.01] flex flex-col justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">Temporarily Deactivate</h4>
-                  <p className="text-[10px] text-white/35 leading-relaxed mt-1">Temporarily shut down your profile. Your page will be hidden from everyone. Reactivate instantly anytime by signing back in.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDeactivateConfirm(true)}
-                  className="w-full py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-[#201013] hover:bg-[#34161b] border border-red-500/20 text-red-400 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  Deactivate Profile
-                </button>
-              </div>
+                    {/* Action 2: Export Social Profile */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const profileData = JSON.stringify(formData, null, 2);
+                        navigator.clipboard.writeText(profileData);
+                        addToast?.({
+                          title: 'COPIED TO CLIPBOARD',
+                          message: 'Profile configuration JSON has been exported to your clipboard.',
+                          type: 'success'
+                        });
+                      }}
+                      className="w-full p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 flex items-center justify-between transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText size={14} className="text-white/70 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-white/90 group-hover:text-white">Export Social Profile</p>
+                          <p className="text-[10px] text-white/40 font-normal truncate">Copy portable configuration & settings JSON to clipboard</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-white/30 group-hover:text-white/70 transition-colors shrink-0 ml-2" />
+                    </button>
 
-              {/* Delete account card */}
-              <div className="p-5 rounded-2xl border border-red-500/15 bg-red-500/[0.02] flex flex-col justify-between gap-4 shadow-sm">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-red-400">Permanently Delete</h4>
-                  <p className="text-[10px] text-red-500/40 leading-relaxed mt-1">Completely delete all account details, credentials, profile information, and storage attachments. This is irreversible after 30 days.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteConfirmText('');
-                    setShowDeleteConfirm(true);
-                  }}
-                  className="w-full py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_0_10px_rgba(239,68,68,0.1)]"
-                >
-                  <Trash2 size={12} />
-                  Purge Profile Account
-                </button>
-              </div>
-            </div>
+                    {/* Action 3: Deactivate Account */}
+                    <button
+                      type="button"
+                      onClick={() => openMetaAccountModal('deactivate')}
+                      className="w-full p-3 rounded-xl bg-white/[0.02] hover:bg-amber-500/10 border border-white/5 hover:border-amber-500/20 flex items-center justify-between transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <PauseCircle size={14} className="text-amber-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-white/90 group-hover:text-white">Deactivate Account</p>
+                            {isDeactivationInCooldown && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[9px] font-mono font-medium">
+                                Cooldown active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-white/40 font-normal truncate">
+                            {isDeactivationInCooldown 
+                              ? `Deactivation paused until ${cooldownDateString}` 
+                              : 'Temporarily hide your profile & activity'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-white/30 group-hover:text-amber-400 transition-colors shrink-0 ml-2" />
+                    </button>
+
+                    {/* Action 4: Delete Account */}
+                    <button
+                      type="button"
+                      onClick={() => openMetaAccountModal('delete')}
+                      className="w-full p-3 rounded-xl bg-white/[0.02] hover:bg-red-500/10 border border-red-500/15 flex items-center justify-between transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Trash2 size={14} className="text-red-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-red-400 group-hover:text-red-300">Delete Account</p>
+                          <p className="text-[10px] text-red-400/50 font-normal truncate">Permanently erase account after 69 days grace period</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={14} className="text-red-400/40 group-hover:text-red-400 transition-colors shrink-0 ml-2" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
         </div>
@@ -2134,6 +2421,414 @@ const AccountSettings: React.FC<AccountSettingsProps> = ({
                   {isEmailChanging ? 'Updating...' : 'Update Email'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* POPUP MODAL: META GUIDED ACCOUNT ACTION (DEACTIVATE / DELETE) */}
+      <AnimatePresence>
+        {showMetaModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMetaModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-[#121620] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-5 text-left text-white max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header with Step Back affordance */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2">
+                  {metaModalStep !== 'choice' && (
+                    <button 
+                      type="button" 
+                      onClick={handleMetaModalStepBack}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
+                      title="Go Back"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                  )}
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    {metaModalStep.startsWith('deactivate') ? (
+                      <>
+                        <PauseCircle size={16} className="text-amber-400 shrink-0" />
+                        Deactivate Account
+                      </>
+                    ) : metaModalStep.startsWith('delete') ? (
+                      <>
+                        <Trash2 size={16} className="text-red-400 shrink-0" />
+                        Delete Account
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert size={16} className="text-white/80 shrink-0" />
+                        Account Management
+                      </>
+                    )}
+                  </h3>
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={() => setShowMetaModal(false)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* STEP 1: CHOICE */}
+              {metaModalStep === 'choice' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-white/60 leading-relaxed">
+                    Choose whether you want to temporarily take a break or permanently remove your account and content.
+                  </p>
+
+                  <div className="space-y-3 pt-1">
+                    {/* Option 1: Deactivate */}
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('deactivate_duration')}
+                      className="w-full p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-amber-400/40 text-left transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <PauseCircle size={18} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-white group-hover:text-amber-300">Deactivate Account</p>
+                          <p className="text-[11px] text-white/50 leading-relaxed font-normal">
+                            Temporarily hide your profile. You can come back anytime (or automatically, if you set a return date).
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Delete */}
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('delete_interstitial')}
+                      className="w-full p-4 rounded-2xl bg-white/[0.03] hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-left transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <Trash2 size={18} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-red-400 group-hover:text-red-300">Delete Account</p>
+                          <p className="text-[11px] text-white/50 leading-relaxed font-normal">
+                            Permanently erase your account and data after a grace period.
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2a - SUBSTEP 1: DEACTIVATE DURATION */}
+              {metaModalStep === 'deactivate_duration' && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">How long do you want to deactivate for?</h4>
+                    <p className="text-[11px] text-white/50 mt-1">Select an automatic return timeframe or choose manual reactivate:</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      { id: '1_day', label: '1 day' },
+                      { id: '1_week', label: '1 week' },
+                      { id: '1_month', label: '1 month' },
+                      { id: '3_months', label: '3 months' },
+                      { id: 'manual', label: 'Until I turn it back on manually' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setDeactivateDuration(opt.id as any)}
+                        className={`w-full p-3 rounded-xl border text-xs text-left transition-all flex items-center justify-between cursor-pointer ${
+                          deactivateDuration === opt.id
+                            ? 'bg-amber-400/10 border-amber-400/50 text-amber-300 font-bold'
+                            : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-white/80 font-normal'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          deactivateDuration === opt.id ? 'border-amber-400 bg-amber-400' : 'border-white/20'
+                        }`}>
+                          {deactivateDuration === opt.id && <Check size={10} className="text-black font-bold" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Return date summary banner */}
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-3">
+                    <Clock size={16} className="text-amber-400 shrink-0" />
+                    <p className="text-[11px] font-mono text-white/80 leading-relaxed">
+                      {formatReturnDateText(deactivateDuration)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMetaModalStep('deactivate_reason')}
+                    className="w-full py-3 rounded-xl bg-amber-400 text-black text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    Continue to Reason
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 2a - SUBSTEP 2: DEACTIVATE REASON */}
+              {metaModalStep === 'deactivate_reason' && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Why are you deactivating?</h4>
+                    <p className="text-[11px] text-white/50 mt-1">Please select the reason that best describes your choice:</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      'Taking a break',
+                      'Privacy concerns',
+                      'Too much time spent',
+                      'Bad experience',
+                      'Concerned about a specific person',
+                      'Something else'
+                    ].map((reason) => (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => setDeactivateReason(reason)}
+                        className={`w-full p-3 rounded-xl border text-xs text-left transition-all flex items-center justify-between cursor-pointer ${
+                          deactivateReason === reason
+                            ? 'bg-amber-400/10 border-amber-400/50 text-amber-300 font-bold'
+                            : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-white/80 font-normal'
+                        }`}
+                      >
+                        <span>{reason}</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          deactivateReason === reason ? 'border-amber-400 bg-amber-400' : 'border-white/20'
+                        }`}>
+                          {deactivateReason === reason && <Check size={10} className="text-black font-bold" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMetaModalStep('deactivate_confirm')}
+                    className="w-full py-3 rounded-xl bg-amber-400 text-black text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    Continue to Confirmation
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 2a - SUBSTEP 3: DEACTIVATE CONFIRM */}
+              {metaModalStep === 'deactivate_confirm' && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">Confirm Deactivation</h4>
+                    <p className="text-[11px] text-white/50 mt-1">Review your deactivation details before proceeding:</p>
+                  </div>
+
+                  {isDeactivationInCooldown ? (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-xs">
+                        <AlertCircle size={16} />
+                        <span>Deactivation Cooldown Active</span>
+                      </div>
+                      <p className="text-xs text-amber-200/80 leading-relaxed font-normal">
+                        You can deactivate again starting <strong className="text-amber-300 font-mono">{cooldownDateString}</strong>. To prevent rapid toggling, account deactivation is temporarily locked for 5 days after reactivating.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2.5 text-xs font-mono">
+                      <div className="flex justify-between border-b border-white/5 pb-2">
+                        <span className="text-white/40">Action:</span>
+                        <span className="text-amber-300 font-bold">Temporarily Deactivate</span>
+                      </div>
+                      <div className="flex justify-between border-b border-white/5 pb-2">
+                        <span className="text-white/40">Duration:</span>
+                        <span className="text-white/80">{deactivateDuration.replace('_', ' ')}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-white/5 pb-2">
+                        <span className="text-white/40">Return Mode:</span>
+                        <span className="text-white/80 text-right max-w-[180px] truncate">
+                          {deactivateDuration === 'manual' ? 'Manual log in' : computeReturnDate(deactivateDuration)?.toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/40">Reason:</span>
+                        <span className="text-white/80">{deactivateReason}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('choice')}
+                      className="py-3 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmDeactivationSubmit}
+                      disabled={isProcessingDangerAction || isDeactivationInCooldown}
+                      className="py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-black text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                    >
+                      {isProcessingDangerAction ? <RefreshCw className="animate-spin" size={14} /> : <PauseCircle size={14} />}
+                      Deactivate My Account
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2b - SUBSTEP 1: DELETE INTERSTITIAL */}
+              {metaModalStep === 'delete_interstitial' && (
+                <div className="space-y-5 text-center py-2">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto">
+                    <PauseCircle size={24} />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h4 className="text-base font-bold text-white uppercase tracking-wider">Want to take a break instead?</h4>
+                    <p className="text-xs text-white/60 leading-relaxed max-w-sm mx-auto">
+                      Deactivating hides your profile without erasing anything, and you can always come back whenever you wish.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('deactivate_duration')}
+                      className="w-full py-3.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-black text-xs font-bold uppercase tracking-wider shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <PauseCircle size={16} />
+                      Deactivate Instead
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('delete_reason')}
+                      className="text-xs text-white/40 hover:text-red-400 underline transition-colors cursor-pointer block mx-auto pt-1"
+                    >
+                      No, Delete My Account
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2b - SUBSTEP 2: DELETE REASON */}
+              {metaModalStep === 'delete_reason' && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider">Why are you deleting your account?</h4>
+                    <p className="text-[11px] text-white/50 mt-1">Please select a reason for deletion:</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      'Creating a new account',
+                      'Concerned about my data/privacy',
+                      'Too much time spent',
+                      'Bad experience',
+                      'Something else'
+                    ].map((reason) => (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => setDeleteReason(reason)}
+                        className={`w-full p-3 rounded-xl border text-xs text-left transition-all flex items-center justify-between cursor-pointer ${
+                          deleteReason === reason
+                            ? 'bg-red-500/10 border-red-500/50 text-red-300 font-bold'
+                            : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] text-white/80 font-normal'
+                        }`}
+                      >
+                        <span>{reason}</span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          deleteReason === reason ? 'border-red-400 bg-red-400' : 'border-white/20'
+                        }`}>
+                          {deleteReason === reason && <Check size={10} className="text-black font-bold" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMetaModalStep('delete_confirm')}
+                    className="w-full py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    Continue to Deletion Warning
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 2b - SUBSTEP 3: DELETE CONFIRM */}
+              {metaModalStep === 'delete_confirm' && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider">Schedule Permanent Deletion</h4>
+                    <p className="text-[11px] text-white/50 mt-1">Please review the grace period policy carefully:</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/25 space-y-2 text-xs leading-relaxed text-red-200">
+                    <div className="flex items-center gap-2 font-bold text-red-400">
+                      <AlertTriangle size={16} />
+                      <span>69-Day Cancellation Grace Period</span>
+                    </div>
+                    <p className="text-[11px] text-white/80 leading-relaxed font-normal">
+                      Your account will be permanently deleted in <strong className="text-red-400 font-mono">69 days</strong>. If you log back in before then, deletion will be cancelled and your account fully restored. After 69 days, this cannot be undone.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="text-[10px] uppercase tracking-widest text-white/50 block font-bold">
+                      Type <code className="text-white bg-white/10 px-1 py-0.5 rounded font-mono">DELETE</code> to confirm schedule:
+                    </label>
+                    <input 
+                      type="text"
+                      value={deleteInputText}
+                      onChange={(e) => setDeleteInputText(e.target.value)}
+                      placeholder="DELETE"
+                      className="w-full h-11 px-4 bg-[#0b0e14] border border-red-500/30 focus:border-red-500 rounded-xl text-xs text-white font-mono text-center focus:outline-none tracking-widest"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setMetaModalStep('choice')}
+                      className="py-3 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmDeletionScheduleSubmit}
+                      disabled={isProcessingDangerAction || deleteInputText.trim() !== 'DELETE'}
+                      className="py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-30 disabled:pointer-events-none shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                    >
+                      {isProcessingDangerAction ? <RefreshCw className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                      Confirm Deletion
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

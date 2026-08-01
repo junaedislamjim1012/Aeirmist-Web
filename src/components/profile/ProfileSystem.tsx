@@ -241,6 +241,36 @@ const ProfileSystem = ({ targetProfile, onMessageClick, onEditProfile, onUserCli
   const [isMutualModalOpen, setIsMutualModalOpen] = useState(false);
   const [followListSearchFilter, setFollowListSearchFilter] = useState('');
 
+  // Dismissable Core Widget state persisted per profile
+  const [isCoreWidgetDismissed, setIsCoreWidgetDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`aeirmist_dismiss_core_widget_${displayUser?.id || 'default'}`) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  React.useEffect(() => {
+    if (displayUser?.id) {
+      try {
+        const isDismissed = localStorage.getItem(`aeirmist_dismiss_core_widget_${displayUser.id}`) === 'true';
+        setIsCoreWidgetDismissed(isDismissed);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [displayUser?.id]);
+
+  const handleDismissCoreWidget = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsCoreWidgetDismissed(true);
+    try {
+      localStorage.setItem(`aeirmist_dismiss_core_widget_${displayUser?.id || 'default'}`, 'true');
+    } catch (e) {
+      // ignore
+    }
+  };
+
   // Sync temp states when displayUser changes or when modal opens
   React.useEffect(() => {
     if (displayUser) {
@@ -1199,90 +1229,101 @@ const ProfileSystem = ({ targetProfile, onMessageClick, onEditProfile, onUserCli
                 </div>
 
                 {/* Modern Holographic Aeirmist Core Widget */}
-                <div 
-                  onClick={() => setIsRankDetailModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gradient-to-r from-white/[0.02] to-white/[0.01] border border-white/5 hover:border-white/15 hover:bg-white/[0.03] active:scale-[0.99] cursor-pointer shadow-2xl relative overflow-hidden group/aeirmistcore lg:max-w-md w-full transition-all duration-300"
-                  title="View Rank Spectrum & Benefits"
-                >
-                  {/* Subtle decorative grid background layer */}
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[length:16px_16px] opacity-40 pointer-events-none" />
-                  
-                  {/* Absolute subtle background glow */}
+                {!isCoreWidgetDismissed && (
                   <div 
-                    className="absolute -right-16 -top-16 w-32 h-32 blur-3xl rounded-full opacity-25 group-hover/aeirmistcore:opacity-40 transition-opacity duration-500 pointer-events-none"
-                    style={{ backgroundColor: rankInfo.color }}
-                  />
+                    onClick={() => setIsRankDetailModalOpen(true)}
+                    className="p-3.5 rounded-xl bg-gradient-to-r from-white/[0.02] to-white/[0.01] border border-white/5 hover:border-white/15 hover:bg-white/[0.03] active:scale-[0.99] cursor-pointer shadow-2xl relative overflow-hidden group/aeirmistcore lg:max-w-md w-full transition-all duration-300"
+                    title="View Rank Spectrum & Benefits"
+                  >
+                    {/* Subtle decorative grid background layer */}
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[length:16px_16px] opacity-40 pointer-events-none" />
+                    
+                    {/* Absolute subtle background glow */}
+                    <div 
+                      className="absolute -right-16 -top-16 w-32 h-32 blur-3xl rounded-full opacity-25 group-hover/aeirmistcore:opacity-40 transition-opacity duration-500 pointer-events-none"
+                      style={{ backgroundColor: rankInfo.color }}
+                    />
 
-                  <div className="relative z-10 flex flex-col gap-2">
-                    {/* Header line */}
-                    <div className="flex items-center justify-between font-sans">
+                    <div className="relative z-10 flex flex-col gap-2">
+                      {/* Header line */}
+                      <div className="flex items-center justify-between font-sans">
+                        <div 
+                          onClick={() => setIsRankDetailModalOpen(true)}
+                          className="flex items-center gap-2 group/title cursor-pointer"
+                        >
+                          <Cpu size={14} className="animate-spin group-hover:text-aeirmist-cyan transition-colors" style={{ color: rankInfo.color, animationDuration: '6s' }} />
+                          <span className="text-[10px] font-black uppercase text-white/40 tracking-[0.2em] group-hover:text-white/70 transition-colors">Aeirmist Sync Level</span>
+                          <Info size={10} className="text-white/20 group-hover:text-aeirmist-cyan opacity-0 group-hover:opacity-100 transition-all" />
+                        </div>
+                        <div className="flex items-center gap-2 font-mono">
+                          <span className="text-[10px] font-black tracking-wider" style={{ color: rankInfo.color }}>
+                            {displayUser?.aeirmistLevel || 0} AP (Aeirmist Points)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleDismissCoreWidget}
+                            className="p-1 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer z-20"
+                            title="Hide widget"
+                            aria-label="Hide widget"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+   
+                      {/* Rank Indicator Badge */}
                       <div 
                         onClick={() => setIsRankDetailModalOpen(true)}
-                        className="flex items-center gap-2 group/title cursor-pointer"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-black/40 border border-white/5 p-3 rounded-xl cursor-pointer hover:bg-black/60 hover:border-white/20 transition-all group/rankbox"
                       >
-                        <Cpu size={14} className="animate-spin group-hover:text-aeirmist-cyan transition-colors" style={{ color: rankInfo.color, animationDuration: '6s' }} />
-                        <span className="text-[10px] font-black uppercase text-white/40 tracking-[0.2em] group-hover:text-white/70 transition-colors">Aeirmist Sync Level</span>
-                        <Info size={10} className="text-white/20 group-hover:text-aeirmist-cyan opacity-0 group-hover:opacity-100 transition-all" />
-                      </div>
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <span className="text-[10px] font-black tracking-wider" style={{ color: rankInfo.color }}>
-                          {displayUser?.aeirmistLevel || 0} AP (Aeirmist Points)
-                        </span>
-                      </div>
-                    </div>
- 
-                    {/* Rank Indicator Badge */}
-                    <div 
-                      onClick={() => setIsRankDetailModalOpen(true)}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-black/40 border border-white/5 p-3 rounded-xl cursor-pointer hover:bg-black/60 hover:border-white/20 transition-all group/rankbox"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <AeirmistRankBadge score={displayUser?.aeirmistLevel || 0} size="sm" />
-                        <span className="text-xs font-black uppercase tracking-[0.25em] text-white group-hover/rankbox:text-aeirmist-cyan transition-colors">
-                          {rankInfo.rank}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {/* Rank specific multiplier badge */}
-                        <span className="text-[9px] font-black font-mono tracking-widest px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/50 w-fit">
-                          MULTIPLIER: {rankInfo.rank === CreatorTier.EXPLORER ? '1.0x' : rankInfo.rank === CreatorTier.CREATOR ? '1.2x' : rankInfo.rank === CreatorTier.VERIFIED_CREATOR ? '1.5x' : rankInfo.rank === CreatorTier.INFINITY_MEMBER ? '2.0x' : '3.0x ELITE'}
-                        </span>
-                        <ChevronRight size={12} className="text-white/20 group-hover/rankbox:text-aeirmist-cyan group-hover/rankbox:translate-x-1 transition-all" />
-                      </div>
-                    </div>
-
-                    {/* Aeirmist Level Progress Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-white/35">
-                        <div className="flex items-center gap-1">
-                          <div className="w-1 h-1 rounded-full bg-aeirmist-lime animate-pulse" />
-                          <span>Sync Status: Active</span>
+                        <div className="flex items-center gap-2.5">
+                          <AeirmistRankBadge score={displayUser?.aeirmistLevel || 0} size="sm" />
+                          <span className="text-xs font-black uppercase tracking-[0.25em] text-white group-hover/rankbox:text-aeirmist-cyan transition-colors">
+                            {rankInfo.rank}
+                          </span>
                         </div>
-                        <span className="hover:text-aeirmist-cyan cursor-pointer transition-colors" onClick={() => setIsRankDetailModalOpen(true)}>
-                          Next Node: {progressInfo.nextRank} ({Math.round(progressInfo.percent)}%)
-                        </span>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Rank specific multiplier badge */}
+                          <span className="text-[9px] font-black font-mono tracking-widest px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-white/50 w-fit">
+                            MULTIPLIER: {rankInfo.rank === CreatorTier.EXPLORER ? '1.0x' : rankInfo.rank === CreatorTier.CREATOR ? '1.2x' : rankInfo.rank === CreatorTier.VERIFIED_CREATOR ? '1.5x' : rankInfo.rank === CreatorTier.INFINITY_MEMBER ? '2.0x' : '3.0x ELITE'}
+                          </span>
+                          <ChevronRight size={12} className="text-white/20 group-hover/rankbox:text-aeirmist-cyan group-hover/rankbox:translate-x-1 transition-all" />
+                        </div>
                       </div>
-                      
-                      {/* Interactive cyberpunk indicator groove bar */}
-                      <div className="h-2 w-full bg-black/60 rounded-full border border-white/5 overflow-hidden p-[1px] relative">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progressInfo.percent}%` }}
-                          transition={{ type: 'spring', damping: 20, stiffness: 80 }}
-                          className="h-full rounded-full relative"
-                          style={{ 
-                            backgroundColor: rankInfo.color,
-                            boxShadow: `0 0 12px ${rankInfo.color}`
-                          }}
-                        >
-                          {/* Liquid glowing sheens */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent pointer-events-none" />
-                        </motion.div>
+
+                      {/* Aeirmist Level Progress Bar */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-white/35">
+                          <div className="flex items-center gap-1">
+                            <div className="w-1 h-1 rounded-full bg-aeirmist-lime animate-pulse" />
+                            <span>Sync Status: Active</span>
+                          </div>
+                          <span className="hover:text-aeirmist-cyan cursor-pointer transition-colors" onClick={() => setIsRankDetailModalOpen(true)}>
+                            Next Node: {progressInfo.nextRank} ({Math.round(progressInfo.percent)}%)
+                          </span>
+                        </div>
+                        
+                        {/* Interactive cyberpunk indicator groove bar */}
+                        <div className="h-2 w-full bg-black/60 rounded-full border border-white/5 overflow-hidden p-[1px] relative">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressInfo.percent}%` }}
+                            transition={{ type: 'spring', damping: 20, stiffness: 80 }}
+                            className="h-full rounded-full relative"
+                            style={{ 
+                              backgroundColor: rankInfo.color,
+                              boxShadow: `0 0 12px ${rankInfo.color}`
+                            }}
+                          >
+                            {/* Liquid glowing sheens */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent pointer-events-none" />
+                          </motion.div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
                 
                 <p className="text-[14px] text-white/70 leading-relaxed font-medium lg:max-w-md">
                   {displayUser?.bio || "No bio yet."}
@@ -1653,7 +1694,7 @@ const ProfileSystem = ({ targetProfile, onMessageClick, onEditProfile, onUserCli
             </div>
           </div>
 
-          <div className="pt-3.5 space-y-4">
+          <div className="space-y-4">
             {/* MOBILE COVER BANNER */}
             <div
               className="w-full h-24 relative overflow-hidden bg-gradient-to-r from-zinc-950 via-[#120e2e] to-black border-b border-white/5"
@@ -1792,58 +1833,71 @@ const ProfileSystem = ({ targetProfile, onMessageClick, onEditProfile, onUserCli
               </p>
 
               {/* Mobile Aeirmist Core Sync Widget - Sleek Compact Version */}
-              <div 
-                onClick={() => setIsRankDetailModalOpen(true)}
-                className="py-2.5 px-3 my-2 rounded-xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] border border-white/5 relative overflow-hidden group/aeirmistmobile w-full flex items-center justify-between gap-3 cursor-pointer hover:bg-white/[0.05] active:scale-[0.98] transition-all"
-              >
-                {/* Subtle background glow */}
+              {!isCoreWidgetDismissed && (
                 <div 
-                  className="absolute -right-12 -top-12 w-24 h-24 blur-2xl rounded-full opacity-20 pointer-events-none"
-                  style={{ backgroundColor: rankInfo.color }}
-                />
+                  onClick={() => setIsRankDetailModalOpen(true)}
+                  className="py-2.5 px-3 my-2 rounded-xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] border border-white/5 relative overflow-hidden group/aeirmistmobile w-full flex items-center justify-between gap-2.5 cursor-pointer hover:bg-white/[0.05] active:scale-[0.98] transition-all"
+                >
+                  {/* Subtle background glow */}
+                  <div 
+                    className="absolute -right-12 -top-12 w-24 h-24 blur-2xl rounded-full opacity-20 pointer-events-none"
+                    style={{ backgroundColor: rankInfo.color }}
+                  />
 
-                <div className="relative z-10 flex items-center gap-2.5 min-w-0 flex-1">
-                  <div className="shrink-0 scale-90">
-                    <AeirmistRankBadge score={displayUser?.aeirmistLevel || 0} size="sm" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-white truncate group-hover/aeirmistmobile:text-aeirmist-cyan transition-colors">
-                        {rankInfo.rank}
-                      </span>
-                      <span className="text-[8px] font-mono font-bold text-white/40 px-1 py-0.5 rounded bg-white/5 shrink-0">
-                        {displayUser?.aeirmistLevel || 0} AP
-                      </span>
-                      <Info size={8} className="text-white/20 opacity-0 group-hover/aeirmistmobile:opacity-100 transition-opacity" />
+                  <div className="relative z-10 flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="shrink-0 scale-90">
+                      <AeirmistRankBadge score={displayUser?.aeirmistLevel || 0} size="sm" />
                     </div>
-                    {/* Compact Progress Line */}
-                    <div className="mt-1 flex items-center gap-2">
-                      <div className="h-1 flex-1 bg-black/60 rounded-full border border-white/5 overflow-hidden relative">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progressInfo.percent}%` }}
-                          transition={{ type: 'spring', damping: 20, stiffness: 80 }}
-                          className="h-full rounded-full"
-                          style={{ 
-                            backgroundColor: rankInfo.color,
-                            boxShadow: `0 0 8px ${rankInfo.color}`
-                          }}
-                        />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-white truncate group-hover/aeirmistmobile:text-aeirmist-cyan transition-colors">
+                          {rankInfo.rank}
+                        </span>
+                        <span className="text-[8px] font-mono font-bold text-white/40 px-1 py-0.5 rounded bg-white/5 shrink-0">
+                          {displayUser?.aeirmistLevel || 0} AP
+                        </span>
+                        <Info size={8} className="text-white/20 opacity-0 group-hover/aeirmistmobile:opacity-100 transition-opacity" />
                       </div>
-                      <span className="text-[7.5px] font-mono font-bold text-white/50 shrink-0">
-                        {progressInfo.percent.toFixed(0)}%
-                      </span>
+                      {/* Compact Progress Line */}
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1 flex-1 bg-black/60 rounded-full border border-white/5 overflow-hidden relative">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressInfo.percent}%` }}
+                            transition={{ type: 'spring', damping: 20, stiffness: 80 }}
+                            className="h-full rounded-full"
+                            style={{ 
+                              backgroundColor: rankInfo.color,
+                              boxShadow: `0 0 8px ${rankInfo.color}`
+                            }}
+                          />
+                        </div>
+                        <span className="text-[7.5px] font-mono font-bold text-white/50 shrink-0">
+                          {progressInfo.percent.toFixed(0)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="relative z-10 shrink-0 flex flex-col items-end justify-center">
-                  <span className="text-[7px] font-black uppercase text-white/30 tracking-widest block leading-none mb-1">Multiplier</span>
-                  <span className="text-[9px] font-mono font-black py-0.5 px-1.5 rounded bg-white/5 border border-white/10 text-white/70" style={{ color: rankInfo.color }}>
-                    {rankInfo.rank === CreatorTier.EXPLORER ? '1.0x' : rankInfo.rank === CreatorTier.CREATOR ? '1.2x' : rankInfo.rank === CreatorTier.VERIFIED_CREATOR ? '1.5x' : rankInfo.rank === CreatorTier.INFINITY_MEMBER ? '2.0x' : '3.0x'}
-                  </span>
+                  <div className="relative z-10 shrink-0 flex items-center gap-2">
+                    <div className="flex flex-col items-end justify-center">
+                      <span className="text-[7px] font-black uppercase text-white/30 tracking-widest block leading-none mb-1">Multiplier</span>
+                      <span className="text-[9px] font-mono font-black py-0.5 px-1.5 rounded bg-white/5 border border-white/10 text-white/70" style={{ color: rankInfo.color }}>
+                        {rankInfo.rank === CreatorTier.EXPLORER ? '1.0x' : rankInfo.rank === CreatorTier.CREATOR ? '1.2x' : rankInfo.rank === CreatorTier.VERIFIED_CREATOR ? '1.5x' : rankInfo.rank === CreatorTier.INFINITY_MEMBER ? '2.0x' : '3.0x'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDismissCoreWidget}
+                      className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer z-20"
+                      title="Hide widget"
+                      aria-label="Hide widget"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Custom external links */}
               {(displayUser?.website || displayUser?.socialLinks?.website || displayUser?.socialLinks?.instagram || displayUser?.socialLinks?.facebook) ? (
