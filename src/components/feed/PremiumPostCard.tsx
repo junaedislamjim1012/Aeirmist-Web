@@ -1539,15 +1539,7 @@ export const PremiumPostCard = React.memo<PostCardProps>(({ post, onUserClick, o
               <span>Share</span>
             </button>
 
-            <button 
-              type="button"
-              aria-label="Send in Messenger"
-              onClick={() => setIsMessengerShareOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-aeirmist-cyan/10 bg-aeirmist-cyan/5 text-aeirmist-cyan/40 hover:text-aeirmist-cyan hover:bg-aeirmist-cyan/10 transition-all duration-300 active:scale-95 font-black uppercase text-[10px] sm:text-xs tracking-wider group"
-            >
-              <MessageSquare size={16} className="transition-transform group-hover:scale-110" aria-hidden="true" />
-              <span className="hidden sm:inline">Message</span>
-            </button>
+
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 text-white/30 hover:text-white transition-colors">
               <Eye size={16} className="text-white/20" />
